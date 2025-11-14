@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  '@qwik.dev/partytown@0.11.1':
-    hash: 5a7916a7aa77de135f08b7889243cd9e2e7a28e692b36890928d69fcf54e72d2
-    path: patches/@qwik.dev__partytown@0.11.1.patch
-
 importers:
 
   .:
@@ -5092,7 +5087,7 @@ snapshots:
 
   '@astrojs/partytown@2.1.4':
     dependencies:
-      '@qwik.dev/partytown': 0.11.1(patch_hash=5a7916a7aa77de135f08b7889243cd9e2e7a28e692b36890928d69fcf54e72d2)
+      '@qwik.dev/partytown': 0.11.1
       mrmime: 2.0.1
 
   '@astrojs/prism@3.3.0':
@@ -5878,7 +5873,7 @@ snapshots:
     dependencies:
       quansync: 0.2.11
 
-  '@qwik.dev/partytown@0.11.1(patch_hash=5a7916a7aa77de135f08b7889243cd9e2e7a28e692b36890928d69fcf54e72d2)':
+  '@qwik.dev/partytown@0.11.1':
     dependencies:
       dotenv: 16.6.1
 
