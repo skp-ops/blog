@@ -18,10 +18,19 @@ const pages = Object.fromEntries(
 )
 
 // Configure Open Graph image generation route
-export const { getStaticPaths, GET } = OGImageRoute({
-  param: 'image',
-  pages,
-  getImageOptions: (_path, page) => ({
+let getStaticPaths: any
+let GET: any
+
+if (process.env.DISABLE_OG === '1') {
+  // When DISABLE_OG is set, skip generating Open Graph images during build.
+  // This helps CI/build environments where Canvas/wasm or network font fetches fail.
+  getStaticPaths = async () => []
+  GET = async () => new Response('OG generation disabled', { status: 404 })
+} else {
+  ;({ getStaticPaths, GET } = OGImageRoute({
+    param: 'image',
+    pages,
+    getImageOptions: (_path, page) => ({
     title: page.title,
     description: page.description,
     logo: {
@@ -53,4 +62,5 @@ export const { getStaticPaths, GET } = OGImageRoute({
     ],
     bgGradient: [[242, 241, 245]],
   }),
-})
+  }))
+}
