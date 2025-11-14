@@ -40,6 +40,16 @@ const { Content } = aboutEntry ? await render(aboutEntry) : { Content: null }
 <Layout>
   <!-- Decorative Line -->
   <div class="uno-decorative-line" />
+
+  <!-- Avatar -->
+  <div class="flex justify-center my-8">
+    <img
+      src="/icons/head.png"
+      alt="Avatar"
+      class="w-40 h-40 rounded-full shadow-xl transition-transform duration-300 hover:scale-105"
+    />
+  </div>
+
   <!-- About Page Content -->
   <div class="heti">
     {Content && <Content />}

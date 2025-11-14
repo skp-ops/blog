@@ -8,9 +8,32 @@ description: This is a universal multilingual post with unspecified 'lang', disp
 
 ```markdown
 ---
-title: Universal Post
-published: 2025-03-24
-# lang: ''
+title: article title                           # 文章标题
+published: 2025-04-25                          # 首次发布时间
+updated: 2025-04-26                            # 更改时间
+description: this is an article about nothing  # 文章概述
+iamge: path-to-image                           # 文章主页图
+tags:                                          # 所属标签
+  - Guide                              
+toc: false                                     # 是否展示文章目录
+lang: en                                       # 文章语言，不填写则适用于全语言
+abbrlink: markdown-extended-features           # 自定义文章链接
+slug: 自定义的 URL 段（string）                  # 可用于构建 permalink。
+draft: true                                    # 是否为草稿
+---
+---
+title: article title
+published: 2025-04-25
+updated: 2025-04-26
+description: this is an article about nothing
+iamge: path-to-image
+tags:
+  - Guide                              
+toc: false
+lang: en
+abbrlink: markdown-extended-features
+slug: 自定义的 URL 段（string）
+draft: true
 ---
 ```
 
