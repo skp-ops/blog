@@ -4,6 +4,7 @@ published: 2025-04-11
 tags:
   - ガイド
 toc: false
+draft: true
 lang: ja
 abbrlink: theme-color-schemes
 ---
@@ -14,8 +15,6 @@ Retypeset は、[OKLCH](https://oklch.com/) カラースペースに基づいて
 
 ## 葱白色
 
-![Light mode](../_images/1-light.jpeg)
-![Dark mode](../_images/1-dark.jpeg)
 
 ```
 light: {
@@ -34,8 +33,6 @@ dark: {
 
 ## 烏青
 
-![Light mode](../_images/2-light.jpeg)
-![Dark mode](../_images/2-dark.jpeg)
 
 ```
 light: {
@@ -54,9 +51,6 @@ dark: {
 
 ## 墨藍
 
-![Light mode](../_images/4-light.jpeg)
-![Dark mode](../_images/4-dark.jpeg)
-
 ```
 light: {
   primary: 'oklch(0.24 0.053 261.24)',
@@ -73,9 +67,6 @@ dark: {
 ```
 
 ## 米色
-
-![Light mode](../_images/3-light.jpeg)
-![Dark mode](../_images/3-dark.jpeg)
 
 ```
 light: {

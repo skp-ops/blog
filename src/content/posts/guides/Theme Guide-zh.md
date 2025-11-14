@@ -7,6 +7,7 @@ tags:
   - 指南
 pin: 99
 lang: zh
+draft: true
 abbrlink: theme-guide
 ---
 

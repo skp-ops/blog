@@ -6,6 +6,7 @@ tags:
   - Guide
 pin: 98
 toc: false
+draft: true
 lang: en
 abbrlink: markdown-style-guide
 ---
@@ -61,7 +62,6 @@ To add images, add an exclamation mark `!`, followed by alt text in brackets `[]
 ### Syntax
 
 ```
-![Image Description](../_images/image-01.jpeg)
 
 ![Image Description](https://image.example.com/image-01.webp)
 ```

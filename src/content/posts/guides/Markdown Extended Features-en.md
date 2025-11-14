@@ -3,9 +3,10 @@ title: Markdown Extended Features
 published: 2025-04-25
 tags:
   - Guide
-toc: false
+toc: false # outline
 lang: en
 abbrlink: markdown-extended-features
+draft: true
 ---
 
 Here are some extended Markdown features supported by Retypeset, including syntax examples and their stylistic effects.

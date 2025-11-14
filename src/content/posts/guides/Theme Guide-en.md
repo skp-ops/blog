@@ -7,6 +7,7 @@ tags:
   - Guide
 pin: 99
 lang: en
+draft: true
 abbrlink: theme-guide
 ---
 

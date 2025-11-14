@@ -14,7 +14,18 @@ import Layout from '@/layouts/Layout.astro'
   <p class="mt-3.6 flex flex-col text-3.6 leading-1.4em font-navbar lg:(mt-4 text-4)">
     <span>It looks like the page you're looking for</span>
     <span>does not exist or has been moved.</span>
+    <span>Please check the URL or return to the homepage.</span>
   </p>
+  
+  <div class="mt-4 text-center">
+    <a
+      href="/"
+      class="inline-block highlight-hover c-primary px-6 py-1.6 text-5 rounded transition-colors after:bottom-0.35em hover:c-primary"
+      aria-label="Go to Homepage"
+    >
+      Go to Homepage
+    </a>
+  </div>
   <!-- Unused Div -->
   <div class="" />
 </Layout>

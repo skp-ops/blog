@@ -7,6 +7,7 @@ tags:
   - ガイド
 pin: 99
 lang: ja
+draft: true
 abbrlink: theme-guide
 ---
 

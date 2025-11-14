@@ -4,6 +4,7 @@ published: 2025-04-11
 tags:
   - Guide
 toc: false
+draft: true
 lang: en
 abbrlink: theme-color-schemes
 ---
@@ -14,8 +15,6 @@ To meet personalization needs, I've created several color schemes for the theme.
 
 ## Scallion White
 
-![Light mode](../_images/1-light.jpeg)
-![Dark mode](../_images/1-dark.jpeg)
 
 ```
 light: {
@@ -34,9 +33,6 @@ dark: {
 
 ## Raven Teal
 
-![Light mode](../_images/2-light.jpeg)
-![Dark mode](../_images/2-dark.jpeg)
-
 ```
 light: {
   primary: 'oklch(0.24 0.0172 280.05)',
@@ -54,8 +50,6 @@ dark: {
 
 ## Ink Blue
 
-![Light mode](../_images/4-light.jpeg)
-![Dark mode](../_images/4-dark.jpeg)
 
 ```
 light: {
@@ -73,9 +67,6 @@ dark: {
 ```
 
 ## Ecru
-
-![Light mode](../_images/3-light.jpeg)
-![Dark mode](../_images/3-dark.jpeg)
 
 ```
 light: {
