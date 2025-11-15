@@ -1,0 +1,374 @@
+---
+import { defaultLocale, moreLocales } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+import { getPosts } from '@/utils/content'
+
+export async function getStaticPaths() {
+  type PathItem = {
+    params: { timeline: string }
+    props: { lang: string }
+  }
+
+  const paths: PathItem[] = []
+
+  // Default locale
+  paths.push({
+    params: { timeline: 'timeline/' },
+    props: { lang: defaultLocale },
+  })
+
+  // More locales
+  moreLocales.forEach((lang: string) => {
+    paths.push({
+      params: { timeline: `${lang}/timeline/` },
+      props: { lang },
+    })
+  })
+
+  return paths
+}
+
+const { lang } = Astro.props
+const allPosts = await getPosts(lang)
+
+// Filter out draft posts
+const posts = allPosts.filter(post => !post.data.draft)
+
+// Group posts by year and month
+interface TimelineItem {
+  year: number
+  month: number
+  posts: typeof posts
+}
+
+const timeline: TimelineItem[] = []
+const groupedPosts = new Map<string, typeof posts>()
+
+posts.forEach(post => {
+  const date = post.data.published
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  // Use padded month for correct sorting (e.g., "2025-03" instead of "2025-3")
+  const key = `${year}-${String(month).padStart(2, '0')}`
+  
+  if (!groupedPosts.has(key)) {
+    groupedPosts.set(key, [])
+  }
+  groupedPosts.get(key)!.push(post)
+})
+
+// Convert to array and sort (newest first)
+Array.from(groupedPosts.entries())
+  .sort((a, b) => b[0].localeCompare(a[0]))
+  .forEach(([key, posts]) => {
+    const [year, month] = key.split('-').map(Number)
+    
+    // Sort posts within each month by date (newest first)
+    posts.sort((a, b) => b.data.published.getTime() - a.data.published.getTime())
+    
+    timeline.push({ year, month, posts })
+  })
+
+// Month names for different languages
+const monthNames: { [key: string]: string[] } = {
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  zh: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+  ja: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+}
+
+const months = monthNames[lang] || monthNames.en
+---
+
+<Layout>
+  <div class="timeline-page">
+    <h1 class="timeline-title">
+      {lang === 'zh' ? '时间线' : lang === 'ja' ? 'タイムライン' : 'Timeline'}
+    </h1>
+    <p class="timeline-desc">
+      {lang === 'zh' ? `共 ${posts.length} 篇文章` : lang === 'ja' ? `合計 ${posts.length} 記事` : `Total ${posts.length} posts`}
+    </p>
+
+    <div class="timeline-container">
+      {timeline.map(({ year, month, posts }) => (
+        <div class="timeline-section">
+          <div class="timeline-date">
+            <div class="timeline-year-month">
+              <span class="timeline-year">{year}</span>
+              <span class="timeline-month">{months[month - 1]}</span>
+            </div>
+          </div>
+          
+          <div class="timeline-content">
+            {posts.map((post) => {
+              const slug = post.data.abbrlink || post.id
+              const day = post.data.published.getDate()
+              
+              return (
+                <a href={`/posts/${slug}/`} class="timeline-item">
+                  <div class="timeline-dot"></div>
+                  <div class="timeline-card">
+                    <div class="timeline-day">{day}</div>
+                    <div class="timeline-post">
+                      <h3 class="timeline-post-title">{post.data.title}</h3>
+                      {post.data.description && (
+                        <p class="timeline-post-desc">{post.data.description}</p>
+                      )}
+                      {post.data.tags && post.data.tags.length > 0 && (
+                        <div class="timeline-tags">
+                          {post.data.tags.slice(0, 3).map(tag => (
+                            <span class="timeline-tag">{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .timeline-page {
+    width: 100%;
+  }
+
+  .timeline-title {
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: oklch(var(--un-preset-theme-colors-primary));
+    margin-bottom: 0.75rem;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-title {
+      font-size: 2rem;
+    }
+  }
+
+  .timeline-desc {
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    margin-bottom: 2.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-desc {
+      margin-bottom: 3rem;
+    }
+  }
+
+  .timeline-container {
+    position: relative;
+  }
+
+  .timeline-section {
+    position: relative;
+    margin-bottom: 3rem;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-section {
+      margin-bottom: 4rem;
+    }
+  }
+
+  .timeline-date {
+    margin-bottom: 1.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-date {
+      margin-bottom: 2rem;
+    }
+  }
+
+  .timeline-year-month {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .timeline-year {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-year {
+      font-size: 1.5rem;
+    }
+  }
+
+  .timeline-month {
+    font-size: 1rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-month {
+      font-size: 1.125rem;
+    }
+  }
+
+  .timeline-content {
+    position: relative;
+    padding-left: 2rem;
+    border-left: 2px solid oklch(var(--un-preset-theme-colors-secondary) / 0.2);
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-content {
+      padding-left: 2.5rem;
+    }
+  }
+
+  .timeline-item {
+    position: relative;
+    display: block;
+    margin-bottom: 2rem;
+    transition: transform 0.2s ease;
+  }
+
+  .timeline-item:hover {
+    transform: translateX(0.25rem);
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-item {
+      margin-bottom: 2.5rem;
+    }
+  }
+
+  .timeline-dot {
+    position: absolute;
+    left: calc(-2.5rem - 2px);
+    top: 0.5rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: oklch(var(--un-preset-theme-colors-primary));
+    box-shadow: 0 0 0 3px oklch(var(--un-preset-theme-colors-background)),
+                0 0 0 5px oklch(var(--un-preset-theme-colors-primary) / 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .timeline-item:hover .timeline-dot {
+    background: oklch(var(--un-preset-theme-colors-primary) / 0.8);
+    box-shadow: 0 0 0 3px oklch(var(--un-preset-theme-colors-background)),
+                0 0 0 6px oklch(var(--un-preset-theme-colors-primary) / 0.3);
+    transform: scale(1.2);
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-dot {
+      left: calc(-3rem - 2px);
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  .timeline-card {
+    display: flex;
+    gap: 1rem;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-card {
+      gap: 1.25rem;
+    }
+  }
+
+  .timeline-day {
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.1);
+    color: oklch(var(--un-preset-theme-colors-primary));
+    font-weight: bold;
+    font-size: 0.875rem;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-day {
+      width: 3rem;
+      height: 3rem;
+      font-size: 1rem;
+    }
+  }
+
+  .timeline-post {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .timeline-post-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: oklch(var(--un-preset-theme-colors-primary));
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    transition: color 0.2s ease;
+  }
+
+  .timeline-post-title:hover {
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-post-title {
+      font-size: 1.125rem;
+    }
+  }
+
+  .timeline-post-desc {
+    font-size: 0.8125rem;
+    color: oklch(var(--un-preset-theme-colors-secondary) / 0.8);
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-post-desc {
+      font-size: 0.875rem;
+    }
+  }
+
+  .timeline-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .timeline-tag {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.1);
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.6875rem;
+  }
+
+  @media (min-width: 1024px) {
+    .timeline-tag {
+      font-size: 0.75rem;
+    }
+  }
+</style>

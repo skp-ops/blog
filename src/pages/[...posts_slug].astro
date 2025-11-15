@@ -5,7 +5,10 @@ import Comment from '@/components/Comment/Index.astro'
 import PostDate from '@/components/PostDate.astro'
 import TagList from '@/components/TagList.astro'
 import BackButton from '@/components/Widgets/BackButton.astro'
+import CopyLink from '@/components/Widgets/CopyLink.astro'
+import LikeButton from '@/components/Widgets/LikeButton.astro'
 import TOC from '@/components/Widgets/TOC.astro'
+import themeConfig from '@/config'
 import { allLocales, defaultLocale, moreLocales } from '@/config'
 import Layout from '@/layouts/Layout.astro'
 import { checkPostSlugDuplication } from '@/utils/content'
@@ -98,6 +101,7 @@ const { post, lang, supportedLangs } = Astro.props
 const slug = post.data.abbrlink || post.id
 const description = getPostDescription(post, 'meta')
 const { Content, headings, remarkPluginFrontmatter } = await render(post)
+const postUrl = `${themeConfig.site.url}/posts/${slug}/`
 ---
 
 <Layout
@@ -141,6 +145,13 @@ const { Content, headings, remarkPluginFrontmatter } = await render(post)
       <Content />
       <!-- Copyright -->
       <div id="post-copyright" />
+      
+      <!-- Action Buttons -->
+      <div class="mt-8 mb-6 flex flex-wrap gap-4 items-center">
+        <CopyLink url={postUrl} />
+        <LikeButton postSlug={slug} />
+      </div>
+      
       <!-- Tag List -->
       {post.data.tags?.length > 0 && (
         <div class="mt-12.6 uno-decorative-line" />
