@@ -13,7 +13,7 @@ type Env = {
 }
 
 // GET /api/likes/:slug - Get like count for a post
-export const GET: APIRoute = async ({ params, request }) => {
+export const GET: APIRoute = async ({ params, locals }) => {
   const { slug } = params
   
   if (!slug) {
@@ -24,11 +24,11 @@ export const GET: APIRoute = async ({ params, request }) => {
   }
 
   try {
-    const runtime = request as any
-    const env = runtime.runtime?.env as Env | undefined
+    const runtime = (locals as any).runtime as { env: Env } | undefined
+    const env = runtime?.env
     
     if (!env?.BLOG_LIKES) {
-      // Fallback for local development without KV
+      console.log('KV not available, returning 0')
       return new Response(JSON.stringify({ count: 0 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -42,7 +42,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       status: 200,
       headers: { 
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=60',
+        'Cache-Control': 'no-cache',
       },
     })
   } catch (error) {
@@ -55,7 +55,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 }
 
 // POST /api/likes/:slug - Increment like count
-export const POST: APIRoute = async ({ params, request }) => {
+export const POST: APIRoute = async ({ params, locals }) => {
   const { slug } = params
   
   if (!slug) {
@@ -66,11 +66,11 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   try {
-    const runtime = request as any
-    const env = runtime.runtime?.env as Env | undefined
+    const runtime = (locals as any).runtime as { env: Env } | undefined
+    const env = runtime?.env
     
     if (!env?.BLOG_LIKES) {
-      // Fallback for local development without KV
+      console.log('KV not available for POST')
       return new Response(JSON.stringify({ count: 1 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -89,48 +89,6 @@ export const POST: APIRoute = async ({ params, request }) => {
     })
   } catch (error) {
     console.error('Error incrementing likes:', error)
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-}
-
-// DELETE /api/likes/:slug - Decrement like count
-export const DELETE: APIRoute = async ({ params, request }) => {
-  const { slug } = params
-  
-  if (!slug) {
-    return new Response(JSON.stringify({ error: 'Missing slug' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  try {
-    const runtime = request as any
-    const env = runtime.runtime?.env as Env | undefined
-    
-    if (!env?.BLOG_LIKES) {
-      // Fallback for local development without KV
-      return new Response(JSON.stringify({ count: 0 }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    const key = `like:${slug}`
-    const currentCount = await env.BLOG_LIKES.get(key)
-    const newCount = Math.max(0, parseInt(currentCount || '0', 10) - 1)
-    
-    await env.BLOG_LIKES.put(key, newCount.toString())
-    
-    return new Response(JSON.stringify({ count: newCount }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  } catch (error) {
-    console.error('Error decrementing likes:', error)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
