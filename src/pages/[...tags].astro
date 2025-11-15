@@ -2,7 +2,7 @@
 import TagList from '@/components/TagList.astro'
 import { defaultLocale, moreLocales } from '@/config'
 import Layout from '@/layouts/Layout.astro'
-import { getAllTags } from '@/utils/content'
+import { getAllTagsWithCount } from '@/utils/content'
 
 export async function getStaticPaths() {
   type PathItem = {
@@ -30,7 +30,7 @@ export async function getStaticPaths() {
 }
 
 const { lang } = Astro.props
-const allTags = await getAllTags(lang)
+const allTags = await getAllTagsWithCount(lang)
 ---
 
 <Layout>

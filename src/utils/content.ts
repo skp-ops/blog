@@ -200,6 +200,23 @@ async function _getAllTags(lang?: string) {
 
 export const getAllTags = memoize(_getAllTags)
 
+export type TagWithCount = {
+  name: string
+  count: number
+}
+
+async function _getAllTagsWithCount(lang?: string): Promise<TagWithCount[]> {
+  const tagMap = await getPostsGroupByTags(lang)
+  const tagsWithCount = Array.from(tagMap.entries()).map(([name, posts]) => ({
+    name,
+    count: posts.length,
+  }))
+
+  return tagsWithCount.sort((a, b) => b.count - a.count)
+}
+
+export const getAllTagsWithCount = memoize(_getAllTagsWithCount)
+
 /**
  * Get all posts that contain a specific tag
  *

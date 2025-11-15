@@ -1,36 +1,61 @@
 ---
 import { getTagPath } from '@/i18n/path'
+import type { TagWithCount } from '@/utils/content'
 
 interface Props {
-  tags: string[]
+  tags: TagWithCount[]
   currentTag?: string
   lang: string
 }
 
-const { tags, currentTag = '', lang } = Astro.props;
----
+const { tags, currentTag = '', lang } = Astro.props
 
-<div class="no-heti flex flex-wrap gap-x-3 gap-y-3.2">
-  {tags.map(tag => (
-    <a
-      href={getTagPath(tag, lang)}
-      class:list={[
-        currentTag === tag
-          ? 'border-secondary/80 c-primary font-medium ring-0.2'
-          : 'ring-0',
-          'relative inline-block border border-secondary/25 rounded-full px-3.2 py-0.7 ring-secondary/80',
-          'transition-[colors,box-shadow] ease-out hover:(border-secondary/80 c-primary font-medium ring-0.2)',
-      ]}
-    >
-      <span class="absolute inset-0 flex items-center justify-center whitespace-nowrap transition-font-weight">
-        {tag}
-      </span>
-      <span
-        class="inline-block font-medium opacity-0"
-        aria-hidden="true"
+const counts = tags.map(tag => tag.count)
+const minCount = Math.min(...counts)
+const maxCount = Math.max(...counts)
+
+function getSizeClass(count: number) {
+  if (maxCount === minCount) {
+    return 'text-xs lg:text-sm px-3 py-0.8'
+  }
+
+  const ratio = (count - minCount) / (maxCount - minCount)
+
+  // 大量标签：整体明显更大、更“重”
+  if (ratio > 0.66)
+    return 'text-lg lg:text-xl px-7 py-1.8 font-semibold shadow-md'
+
+  // 中等数量：中等大小
+  if (ratio > 0.33)
+    return 'text-sm lg:text-base px-5 py-1.4 font-medium shadow-sm'
+
+  // 少量标签：明显小一圈
+  return 'text-[0.7rem] lg:text-xs px-3 py-0.7'
+}
+---
+<div class="no-heti flex flex-wrap gap-x-2 gap-y-2.5">
+  {tags.map(tag => {
+    const isActive = currentTag === tag.name
+    const sizeClass = getSizeClass(tag.count)
+
+    return (
+      <a
+        href={getTagPath(tag.name, lang)}
+        class:list={[
+          'relative inline-flex items-center rounded-full border border-secondary/25 bg-bg-secondary/40 ring-secondary/80 transition-[colors,box-shadow,transform] ease-out hover:(border-secondary/80 c-primary font-semibold ring-0.2 -translate-y-0.3 bg-bg-secondary/80)',
+          sizeClass,
+          isActive
+            ? 'border-secondary/80 c-primary font-semibold ring-0.2 bg-bg-secondary/90'
+            : 'ring-0',
+        ]}
       >
-        {tag}
-      </span>
-    </a>
-  ))}
+        <span class="mr-2 whitespace-nowrap">
+          {tag.name}
+        </span>
+        <span class="rounded-full bg-accent/10 px-2 py-0.2 text-[0.72rem] font-medium text-accent">
+          {tag.count}
+        </span>
+      </a>
+    )
+  })}
 </div>
