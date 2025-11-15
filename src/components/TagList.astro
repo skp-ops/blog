@@ -6,9 +6,10 @@ interface Props {
   tags: TagWithCount[]
   currentTag?: string
   lang: string
+  showCount?: boolean
 }
 
-const { tags, currentTag = '', lang } = Astro.props
+const { tags, currentTag = '', lang, showCount = true } = Astro.props
 
 const counts = tags.map(tag => tag.count)
 const minCount = Math.min(...counts)
@@ -52,9 +53,11 @@ function getSizeClass(count: number) {
         <span class="mr-2 whitespace-nowrap">
           {tag.name}
         </span>
-        <span class="rounded-full bg-accent/10 px-2 py-0.2 text-[0.72rem] font-medium text-accent">
-          {tag.count}
-        </span>
+        {showCount && (
+          <span class="rounded-full bg-accent/10 px-2 py-0.2 text-[0.72rem] font-medium text-accent">
+            {tag.count}
+          </span>
+        )}
       </a>
     )
   })}

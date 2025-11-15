@@ -7,15 +7,17 @@ export const ui = {
     tags: 'Tags',
     about: 'About',
     toc: 'Table of Contents',
+    search: 'Looking for something...',
   },
   'ja': {
-    title: "Kun's Blog",
-    subtitle: 'code | coffee | capture',
+    title: "Kun's ブログ",
+    subtitle: 'コード | コーヒー | キャプチャ',
     description: 'シンプルな個人ブログです',
     posts: '記事',
     tags: 'タグ',
     about: '概要',
     toc: '目次',
+    search: '何かを探している...',
   },
   'zh': {
     title: "Kun's Blog",
@@ -25,5 +27,6 @@ export const ui = {
     tags: '标签',
     about: '关于',
     toc: '目录',
+    search: '找些什么...',
   },
 }

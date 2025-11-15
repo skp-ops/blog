@@ -1,0 +1,218 @@
+---
+import { ui } from '@/i18n/ui'
+import { getPageInfo } from '@/utils/page'
+
+const { currentLang } = getPageInfo(Astro.url.pathname)
+const currentUI = ui[currentLang as keyof typeof ui] ?? {}
+---
+
+<div class="search-container">
+  <div class="search-box">
+    <svg 
+      class="search-icon" 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="20" 
+      height="20" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      stroke-width="2" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"
+    >
+      <circle cx="11" cy="11" r="8"></circle>
+      <path d="m21 21-4.35-4.35"></path>
+    </svg>
+    <input
+      type="text"
+      id="search-input"
+      class="search-input"
+      placeholder={currentUI.search || 'Search...'}
+      aria-label="Search posts"
+    />
+    <button
+      id="search-clear"
+      class="search-clear"
+      aria-label="Clear search"
+      style="display: none;"
+    >
+      <svg 
+        xmlns="http://www.w3.org/2000/svg" 
+        width="16" 
+        height="16" 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        stroke-width="2" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+      >
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+  
+  <div id="search-results" class="search-results" style="display: none;">
+    <div id="search-results-content"></div>
+  </div>
+</div>
+
+<script>
+  interface Post {
+    title: string
+    slug: string
+    lang: string
+    description?: string
+    date: Date
+    tags?: string[]
+  }
+
+  let posts: Post[] = []
+  let searchInput: HTMLInputElement
+  let searchClear: HTMLButtonElement
+  let searchResults: HTMLElement
+  let searchResultsContent: HTMLElement
+  let currentLang: string
+
+  async function initSearch() {
+    searchInput = document.getElementById('search-input') as HTMLInputElement
+    searchClear = document.getElementById('search-clear') as HTMLButtonElement
+    searchResults = document.getElementById('search-results') as HTMLElement
+    searchResultsContent = document.getElementById('search-results-content') as HTMLElement
+
+    // Get current language from URL path
+    const pathParts = window.location.pathname.split('/')
+    currentLang = (pathParts[1] && pathParts[1].length === 2) ? pathParts[1] : 'zh'
+
+    // Fetch posts data
+    try {
+      const response = await fetch('/api/search.json')
+      if (response.ok) {
+        const allPosts = await response.json()
+        // Filter posts by current language
+        posts = allPosts.filter((post: Post) => post.lang === currentLang)
+      }
+    } catch (error) {
+      console.error('Failed to fetch posts data:', error)
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', handleSearch)
+    searchInput.addEventListener('focus', handleSearch)
+    searchClear.addEventListener('click', clearSearch)
+    
+    // Close search results when clicking outside
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.search-container')) {
+        hideResults()
+      }
+    })
+
+    // Close search results when scrolling on mobile
+    let scrollTimeout: number
+    window.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout)
+      scrollTimeout = window.setTimeout(() => {
+        if (window.innerWidth < 768) {
+          hideResults()
+        }
+      }, 100)
+    }, { passive: true })
+  }
+
+  function handleSearch(e: Event) {
+    const query = (e.target as HTMLInputElement).value.trim().toLowerCase()
+    
+    // Show/hide clear button
+    searchClear.style.display = query ? 'flex' : 'none'
+
+    if (query.length < 2) {
+      hideResults()
+      return
+    }
+
+    const results = posts.filter(post => {
+      const titleMatch = post.title.toLowerCase().includes(query)
+      const descMatch = post.description?.toLowerCase().includes(query) || false
+      const tagsMatch = post.tags?.some(tag => tag.toLowerCase().includes(query)) || false
+      return titleMatch || descMatch || tagsMatch
+    })
+
+    displayResults(results, query)
+  }
+
+  function displayResults(results: Post[], query: string) {
+    if (results.length === 0) {
+      searchResultsContent.innerHTML = `
+        <div class="search-no-results">
+          <p>No results found for "${escapeHtml(query)}"</p>
+        </div>
+      `
+    } else {
+      searchResultsContent.innerHTML = results
+        .slice(0, 10) // Limit to 10 results
+        .map(post => {
+          const formattedDate = new Date(post.date).toLocaleDateString()
+          return `
+            <a href="${post.slug}" class="search-result-item">
+              <div class="search-result-title">${highlightText(post.title, query)}</div>
+              ${post.description ? `<div class="search-result-desc">${highlightText(post.description, query)}</div>` : ''}
+              <div class="search-result-meta">
+                <span class="search-result-date">${formattedDate}</span>
+                ${post.tags && post.tags.length > 0 ? `<span class="search-result-tags">${post.tags.slice(0, 3).map(tag => `<span class="tag">${tag}</span>`).join('')}</span>` : ''}
+              </div>
+            </a>
+          `
+        })
+        .join('')
+      
+      if (results.length > 10) {
+        searchResultsContent.innerHTML += `
+          <div class="search-more-results">
+            <p>+${results.length - 10} more results</p>
+          </div>
+        `
+      }
+    }
+
+    searchResults.style.display = 'block'
+  }
+
+  function hideResults() {
+    searchResults.style.display = 'none'
+  }
+
+  function clearSearch() {
+    searchInput.value = ''
+    searchClear.style.display = 'none'
+    hideResults()
+    searchInput.focus()
+  }
+
+  function highlightText(text: string, query: string): string {
+    const regex = new RegExp(`(${escapeRegex(query)})`, 'gi')
+    return escapeHtml(text).replace(regex, '<mark>$1</mark>')
+  }
+
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div')
+    div.textContent = text
+    return div.innerHTML
+  }
+
+  function escapeRegex(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+
+  // Initialize on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSearch)
+  } else {
+    initSearch()
+  }
+
+  // Re-initialize after view transitions
+  document.addEventListener('astro:after-swap', initSearch)
+</script>
