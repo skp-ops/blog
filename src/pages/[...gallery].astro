@@ -185,25 +185,49 @@ const t = translations[lang as keyof typeof translations] || translations.en
         infoPanel = document.createElement('div')
         infoPanel.className = 'gallery-info-panel'
         
-        let infoHTML = `<h2 class="info-title">${title}</h2>`
-        if (description)
-          infoHTML += `<p class="info-description">${description}</p>`
-        if (location)
-          infoHTML += `<p class="info-location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${location}</p>`
+        // Build info panel with escaped content
+        const titleEl = document.createElement('h2')
+        titleEl.className = 'info-title'
+        titleEl.textContent = title
+        infoPanel.appendChild(titleEl)
+
+        if (description) {
+          const descEl = document.createElement('p')
+          descEl.className = 'info-description'
+          descEl.textContent = description
+          infoPanel.appendChild(descEl)
+        }
+
+        if (location) {
+          const locEl = document.createElement('p')
+          locEl.className = 'info-location'
+          locEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>'
+          locEl.appendChild(document.createTextNode(location))
+          infoPanel.appendChild(locEl)
+        }
+
         if (tags) {
           const tagList = tags.split(', ').filter(t => t)
           if (tagList.length > 0) {
-            infoHTML += `<div class="info-tags">${tagList.map(tag => `<span class="info-tag">${tag}</span>`).join('')}</div>`
+            const tagsContainer = document.createElement('div')
+            tagsContainer.className = 'info-tags'
+            tagList.forEach((tag) => {
+              const tagEl = document.createElement('span')
+              tagEl.className = 'info-tag'
+              tagEl.textContent = tag
+              tagsContainer.appendChild(tagEl)
+            })
+            infoPanel.appendChild(tagsContainer)
           }
         }
         
-        infoPanel.innerHTML = infoHTML
         zoomOverlay.appendChild(infoPanel)
 
         // Clone and position image
         const fullImage = target.getAttribute('data-full-image') || target.src
         const zoomedImg = document.createElement('img')
         zoomedImg.src = fullImage
+        zoomedImg.alt = title
         zoomedImg.className = 'gallery-zoomed-image'
         zoomOverlay.appendChild(zoomedImg)
 
@@ -214,12 +238,14 @@ const t = translations[lang as keyof typeof translations] || translations.en
           zoomOverlay!.classList.add('active')
         })
 
-        // Close on click
+        // Close on click outside image and info panel
         const closeHandler = (e: MouseEvent) => {
-          if (e.target === zoomOverlay || (e.target as HTMLElement).closest('.gallery-info-panel')) {
-            return
+          const clickedImage = (e.target as HTMLElement).closest('.gallery-zoomed-image')
+          const clickedPanel = (e.target as HTMLElement).closest('.gallery-info-panel')
+          
+          if (!clickedImage && !clickedPanel) {
+            closeZoom()
           }
-          closeZoom()
         }
 
         const closeZoom = () => {
