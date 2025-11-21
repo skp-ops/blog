@@ -55,17 +55,39 @@ const t = translations[lang as keyof typeof translations] || translations.en
     <div class="gallery-grid">
       {sortedPhotos.map(photo => (
         <div class="gallery-item" data-photo-id={photo.id}>
-          <img
-            src={photo.data.thumbnail || photo.data.image}
-            alt={photo.data.title}
-            class="gallery-image"
-            loading="lazy"
-            data-full-image={photo.data.image}
-            data-photo-title={photo.data.title}
-            data-photo-description={photo.data.description || ''}
-            data-photo-location={photo.data.location || ''}
-            data-photo-tags={photo.data.tags?.join(', ') || ''}
-          />
+          <div class="gallery-card">
+            <div class="gallery-image-wrapper">
+              <img
+                src={photo.data.thumbnail || photo.data.image}
+                alt={photo.data.title}
+                class="gallery-image"
+                loading="lazy"
+                data-full-image={photo.data.image}
+              />
+            </div>
+            <div class="gallery-info">
+              <h3 class="gallery-photo-title">{photo.data.title}</h3>
+              {photo.data.description && (
+                <p class="gallery-photo-desc">{photo.data.description}</p>
+              )}
+              {photo.data.location && (
+                <p class="gallery-photo-location">
+                  <svg class="gallery-location-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  {photo.data.location}
+                </p>
+              )}
+              {photo.data.tags && photo.data.tags.length > 0 && (
+                <div class="gallery-tags">
+                  {photo.data.tags.map(tag => (
+                    <span class="gallery-tag">{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       ))}
     </div>
@@ -103,40 +125,28 @@ const t = translations[lang as keyof typeof translations] || translations.en
   }
 
   .gallery-grid {
-    columns: 1;
-    column-gap: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 
   @media (min-width: 640px) {
     .gallery-grid {
-      columns: 2;
-      column-gap: 1.75rem;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.75rem;
     }
   }
 
   @media (min-width: 1024px) {
     .gallery-grid {
-      columns: 3;
-      column-gap: 2rem;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
     }
   }
 
   .gallery-item {
     break-inside: avoid;
     page-break-inside: avoid;
-    margin-bottom: 1.5rem;
-  }
-
-  @media (min-width: 640px) {
-    .gallery-item {
-      margin-bottom: 1.75rem;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .gallery-item {
-      margin-bottom: 2rem;
-    }
   }
 
   .gallery-card {
@@ -161,6 +171,7 @@ const t = translations[lang as keyof typeof translations] || translations.en
     width: 100%;
     overflow: hidden;
     border-radius: 0.75rem 0.75rem 0 0;
+    cursor: zoom-in;
   }
 
   .gallery-image {
@@ -201,6 +212,98 @@ const t = translations[lang as keyof typeof translations] || translations.en
   .gallery-photo-desc {
     font-size: 0.875rem;
     color: oklch(var(--un-preset-theme-colors-secondary) / 0.8);
+    margin-bottom: 0.75rem;
     line-height: 1.5;
   }
+
+  .gallery-photo-location {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: oklch(var(--un-preset-theme-colors-secondary) / 0.7);
+    margin-bottom: 0.75rem;
+  }
+
+  .gallery-location-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  .gallery-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .gallery-tag {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.1);
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+  }
+
+  .gallery-tag:hover {
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-tag {
+      font-size: 0.8125rem;
+    }
+  }
 </style>
+
+<script>
+  // Handle image click for zoom
+  document.addEventListener('astro:page-load', () => {
+    const images = document.querySelectorAll('.gallery-image')
+
+    images.forEach((img) => {
+      img.addEventListener('click', (e) => {
+        const target = e.target as HTMLImageElement
+        const fullImage = target.getAttribute('data-full-image')
+
+        // If full image URL exists, replace the src temporarily for zoom
+        if (fullImage && fullImage !== target.src) {
+          const originalSrc = target.src
+          target.src = fullImage
+
+          // Wait for ImageZoom overlay to be created and observe it
+          const setupObserver = () => {
+            const zoomOverlay = document.querySelector('.zoom-overlay') as HTMLElement
+            if (!zoomOverlay) {
+              return
+            }
+
+            // Restore original after zoom closes
+            const observer = new MutationObserver(() => {
+              try {
+                if (!zoomOverlay || zoomOverlay.style.display === 'none') {
+                  target.src = originalSrc
+                  observer.disconnect()
+                }
+              }
+              catch {
+                observer.disconnect()
+              }
+            })
+
+            observer.observe(zoomOverlay, { attributes: true, attributeFilter: ['style'] })
+          }
+
+          // Use requestAnimationFrame to wait for overlay creation
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setupObserver()
+            })
+          })
+        }
+      })
+    })
+  })
+</script>
