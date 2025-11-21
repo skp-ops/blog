@@ -15,7 +15,6 @@ Retypeset は、[OKLCH](https://oklch.com/) カラースペースに基づいて
 
 ## 葱白色
 
-
 ```
 light: {
   primary: 'oklch(0.25 0.03 211.86)',
@@ -32,7 +31,6 @@ dark: {
 ```
 
 ## 烏青
-
 
 ```
 light: {

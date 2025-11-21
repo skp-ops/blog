@@ -1,32 +1,32 @@
 // Global Language Map
 export const langMap: Record<string, string[]> = {
-  'en': ['en-US'],
-  'ja': ['ja-JP'],
-  'zh': ['zh-CN'],
+  en: ['en-US'],
+  ja: ['ja-JP'],
+  zh: ['zh-CN'],
 }
 
 // Giscus Language Map
 // https://giscus.app/
 export const giscusLocaleMap: Record<string, string> = {
-  'en': 'en',
-  'ja': 'ja',
-  'zh': 'zh-CN',
+  en: 'en',
+  ja: 'ja',
+  zh: 'zh-CN',
 }
 
 // Twikoo Language Map
 // https://github.com/twikoojs/twikoo/blob/main/src/client/utils/i18n/index.js
 export const twikooLocaleMap: Record<string, string> = {
-  'en': 'en',
-  'ja': 'ja',
-  'zh': 'zh-cn',
+  en: 'en',
+  ja: 'ja',
+  zh: 'zh-cn',
 }
 
 // Waline Language Map
 // https://waline.js.org/en/guide/features/i18n.html
 export const walineLocaleMap: Record<string, string> = {
-  'en': 'en-US',
-  'ja': 'jp-JP',
-  'zh': 'zh-CN',
+  en: 'en-US',
+  ja: 'jp-JP',
+  zh: 'zh-CN',
 }
 
 // Supported Languages

@@ -9,6 +9,7 @@ const isPostActive = isHome || isPost
 const isTagActive = isTag
 const isAboutActive = isAbout
 const isTimelineActive = Astro.url.pathname.includes('/timeline')
+const isGalleryActive = Astro.url.pathname.includes('/gallery')
 
 function getNavItemClass(isActive: boolean) {
   return isActive
@@ -31,6 +32,11 @@ const navItems = [
     href: '/timeline/',
     label: currentUI.timeline,
     className: getNavItemClass(isTimelineActive),
+  },
+  {
+    href: '/gallery/',
+    label: currentUI.gallery,
+    className: getNavItemClass(isGalleryActive),
   },
   {
     href: '/about/',

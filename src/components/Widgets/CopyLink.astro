@@ -71,52 +71,55 @@ const { url } = Astro.props
 </style>
 
 <script>
-  function initCopyLink() {
-    const copyButton = document.querySelector('.copy-link-button') as HTMLButtonElement
-    
-    if (!copyButton) return
+function initCopyLink() {
+  const copyButton = document.querySelector('.copy-link-button') as HTMLButtonElement
 
-    const copyIcon = copyButton.querySelector('.copy-icon') as SVGElement
-    const checkIcon = copyButton.querySelector('.check-icon') as SVGElement
-    const copyText = copyButton.querySelector('.copy-text') as HTMLSpanElement
+  if (!copyButton)
+    return
 
-    copyButton.addEventListener('click', async () => {
-      const url = copyButton.dataset.url || window.location.href
+  const copyIcon = copyButton.querySelector('.copy-icon') as SVGElement
+  const checkIcon = copyButton.querySelector('.check-icon') as SVGElement
+  const copyText = copyButton.querySelector('.copy-text') as HTMLSpanElement
 
-      try {
-        await navigator.clipboard.writeText(url)
-        
-        // Show success state
-        copyIcon.style.display = 'none'
-        checkIcon.style.display = 'block'
-        copyText.textContent = 'Copied!'
-        copyButton.classList.add('copy-success')
+  copyButton.addEventListener('click', async () => {
+    const url = copyButton.dataset.url || window.location.href
 
-        // Reset after 2 seconds
-        setTimeout(() => {
-          copyIcon.style.display = 'block'
-          checkIcon.style.display = 'none'
-          copyText.textContent = 'Copy Link'
-          copyButton.classList.remove('copy-success')
-        }, 2000)
-      } catch (err) {
-        console.error('Failed to copy:', err)
-        copyText.textContent = 'Failed'
-        
-        setTimeout(() => {
-          copyText.textContent = 'Copy Link'
-        }, 2000)
-      }
-    })
-  }
+    try {
+      await navigator.clipboard.writeText(url)
 
-  // Initialize on page load
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initCopyLink)
-  } else {
-    initCopyLink()
-  }
+      // Show success state
+      copyIcon.style.display = 'none'
+      checkIcon.style.display = 'block'
+      copyText.textContent = 'Copied!'
+      copyButton.classList.add('copy-success')
 
-  // Re-initialize after view transitions
-  document.addEventListener('astro:after-swap', initCopyLink)
+      // Reset after 2 seconds
+      setTimeout(() => {
+        copyIcon.style.display = 'block'
+        checkIcon.style.display = 'none'
+        copyText.textContent = 'Copy Link'
+        copyButton.classList.remove('copy-success')
+      }, 2000)
+    }
+    catch (err) {
+      console.error('Failed to copy:', err)
+      copyText.textContent = 'Failed'
+
+      setTimeout(() => {
+        copyText.textContent = 'Copy Link'
+      }, 2000)
+    }
+  })
+}
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCopyLink)
+}
+else {
+  initCopyLink()
+}
+
+// Re-initialize after view transitions
+document.addEventListener('astro:after-swap', initCopyLink)
 </script>

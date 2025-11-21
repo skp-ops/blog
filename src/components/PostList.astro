@@ -26,12 +26,12 @@ export interface Props {
     return (
       <a
         href={url}
-        class="card-base group block rounded-lg p-6 transition-all bg-bg-secondary shadow-md hover:bg-bg-tertiary hover:shadow-xl hover:-translate-y-1"
+        class="card-base group bg-bg-secondary hover:bg-bg-tertiary block rounded-lg p-6 shadow-md transition-all hover:shadow-xl hover:-translate-y-1"
         data-astro-prefetch
       >
         <article>
           <h2
-            class="mb-2 text-xl font-bold transition-colors group-hover:text-accent"
+            class="group-hover:text-accent mb-2 text-xl font-bold transition-colors"
             transition:name={`post-${slug}${lang ? `-${lang}` : ''}`}
             data-disable-theme-transition
           >

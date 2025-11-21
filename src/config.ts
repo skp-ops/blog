@@ -4,7 +4,7 @@ export const themeConfig: ThemeConfig = {
   // SITE INFORMATION >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> START
   site: {
     // site title
-    title: "Kun's Blog",
+    title: 'Kun\'s Blog',
     // site subtitle
     subtitle: 'code | coffee | capture',
     // site description
@@ -49,7 +49,7 @@ export const themeConfig: ThemeConfig = {
     locale: 'zh',
     // more languages
     // not fill in the locale code above again, can be an empty array []
-    moreLocales: ['en', 'ja'], 
+    moreLocales: ['en', 'ja'],
     // font styles for post text
     fontStyle: 'sans', // sans, serif
     // date format for posts

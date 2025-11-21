@@ -15,7 +15,6 @@ To meet personalization needs, I've created several color schemes for the theme.
 
 ## Scallion White
 
-
 ```
 light: {
   primary: 'oklch(0.25 0.03 211.86)',
@@ -49,7 +48,6 @@ dark: {
 ```
 
 ## Ink Blue
-
 
 ```
 light: {

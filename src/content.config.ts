@@ -34,4 +34,17 @@ const about = defineCollection({
   }),
 })
 
-export const collections = { posts, about }
+const photos = defineCollection({
+  loader: glob({ pattern: '**/*.json', base: './src/content/photos' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string().optional().default(''),
+    date: z.coerce.date(),
+    image: z.string(),
+    thumbnail: z.string().optional(),
+    tags: z.array(z.string()).optional().default([]),
+    location: z.string().optional().default(''),
+  }),
+})
+
+export const collections = { posts, about, photos }
