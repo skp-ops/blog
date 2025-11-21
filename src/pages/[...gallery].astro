@@ -273,25 +273,35 @@ const t = translations[lang as keyof typeof translations] || translations.en
           const originalSrc = target.src
           target.src = fullImage
 
-          // Restore original after zoom closes
-          const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-              if (mutation.attributeName === 'style') {
-                const zoomOverlay = document.querySelector('.zoom-overlay') as HTMLElement
+          // Wait for ImageZoom overlay to be created and observe it
+          const setupObserver = () => {
+            const zoomOverlay = document.querySelector('.zoom-overlay') as HTMLElement
+            if (!zoomOverlay) {
+              return
+            }
+
+            // Restore original after zoom closes
+            const observer = new MutationObserver(() => {
+              try {
                 if (!zoomOverlay || zoomOverlay.style.display === 'none') {
                   target.src = originalSrc
                   observer.disconnect()
                 }
               }
+              catch {
+                observer.disconnect()
+              }
+            })
+
+            observer.observe(zoomOverlay, { attributes: true, attributeFilter: ['style'] })
+          }
+
+          // Use requestAnimationFrame to wait for overlay creation
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setupObserver()
             })
           })
-
-          setTimeout(() => {
-            const zoomOverlay = document.querySelector('.zoom-overlay') as HTMLElement
-            if (zoomOverlay) {
-              observer.observe(zoomOverlay, { attributes: true })
-            }
-          }, 100)
         }
       })
     })
