@@ -109,28 +109,40 @@ const t = translations[lang as keyof typeof translations] || translations.en
   }
 
   .gallery-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+    column-count: 1;
+    column-gap: 1.5rem;
   }
 
   @media (min-width: 640px) {
     .gallery-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1.75rem;
+      column-count: 2;
+      column-gap: 1.75rem;
     }
   }
 
   @media (min-width: 1024px) {
     .gallery-grid {
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2rem;
+      column-count: 3;
+      column-gap: 2rem;
     }
   }
 
   .gallery-item {
     break-inside: avoid;
     page-break-inside: avoid;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .gallery-item {
+      margin-bottom: 1.75rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-item {
+      margin-bottom: 2rem;
+    }
   }
 
   .gallery-card {
