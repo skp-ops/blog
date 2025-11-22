@@ -31,7 +31,7 @@ export const ui = {
     tags: '标签',
     about: '关于',
     timeline: '时间线',
-    gallery: '相册',
+    gallery: '画廊',
     toc: '目录',
     search: '找些什么...',
   },

@@ -3,6 +3,8 @@ const ImageZoom = {
   overlay: document.querySelector('.zoom-overlay') as HTMLDivElement | null,
   zoomedImg: null as HTMLImageElement | null,
   originalImg: null as HTMLImageElement | null,
+  detailWrap: null as HTMLDivElement | null,
+  topBar: null as HTMLDivElement | null,
 
   // Create overlay element
   createOverlay() {
@@ -22,8 +24,9 @@ const ImageZoom = {
       left: '0',
       width: '100%',
       height: '100%',
-      zIndex: '999',
-      backgroundColor: 'oklch(var(--un-preset-theme-colors-background) / 0.95)',
+      zIndex: '9999',
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      backdropFilter: 'blur(18px)',
       opacity: '0',
       transition: 'opacity 300ms cubic-bezier(0.4, 0, 0.2, 1)',
       cursor: 'zoom-out',
@@ -31,6 +34,12 @@ const ImageZoom = {
     })
 
     document.body.appendChild(this.overlay)
+
+    // Close when clicking background (but ignore clicks on detail sheet or top bar)
+    const overlayEl = this.overlay
+    overlayEl.addEventListener('click', (e: MouseEvent) => {
+      if (e.target === overlayEl) this.close()
+    })
   },
 
   // Zoom in the image
@@ -53,12 +62,12 @@ const ImageZoom = {
       width: `${rect.width}px`,
       height: `${rect.height}px`,
       transition: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
-      zIndex: '1000',
+      zIndex: '1',
       cursor: 'zoom-out',
     })
 
-    // Add to DOM and show
-    document.body.appendChild(this.zoomedImg)
+    // Add to overlay and show
+    this.overlay.appendChild(this.zoomedImg)
     this.overlay.style.display = 'block'
     this.overlay.focus()
 
@@ -72,6 +81,9 @@ const ImageZoom = {
     )
     const translateX = (-rect.left + (viewportWidth - rect.width) / 2) / scale
     const translateY = (-rect.top + (viewportHeight - rect.height) / 2) / scale
+
+    // Build and attach details UI
+    this.attachDetailsFrom(img)
 
     // Start animation
     requestAnimationFrame(() => {
@@ -87,27 +99,31 @@ const ImageZoom = {
 
   // Close zoomed image
   close() {
-    if (!this.overlay || !this.zoomedImg || !this.originalImg) {
+    if (!this.overlay) {
       return
     }
 
     // Reset transform and start closing animation
-    this.zoomedImg.style.transform = ''
+    if (this.zoomedImg) this.zoomedImg.style.transform = ''
     this.overlay.style.opacity = '0'
     document.body.style.overflow = ''
 
     // Clean up after animation completes
     setTimeout(() => {
       // Remove zoomed image
-      if (this.zoomedImg && this.zoomedImg.parentNode) {
-        document.body.removeChild(this.zoomedImg)
-      }
+      if (this.zoomedImg && this.zoomedImg.parentNode) this.zoomedImg.parentNode.removeChild(this.zoomedImg)
       this.zoomedImg = null
 
       // Hide overlay
       if (this.overlay) {
         this.overlay.style.display = 'none'
       }
+
+      // Remove detail sheet and top bar
+      if (this.detailWrap && this.detailWrap.parentNode) this.detailWrap.parentNode.removeChild(this.detailWrap)
+      if (this.topBar && this.topBar.parentNode) this.topBar.parentNode.removeChild(this.topBar)
+      this.detailWrap = null
+      this.topBar = null
 
       // Restore original image and focus
       if (this.originalImg) {
@@ -161,6 +177,110 @@ const ImageZoom = {
     document.addEventListener('astro:page-load', () => this.setupOverlay())
     document.addEventListener('click', event => this.handleClick(event), { passive: true })
     window.addEventListener('resize', () => this.handleResize(), { passive: true })
+  },
+
+  // Build iOS-style glass details from image dataset
+  attachDetailsFrom(img: HTMLImageElement) {
+    if (!this.overlay) return
+
+    const lang = document.documentElement.lang || 'en'
+    const formatDate = (iso?: string | null) => {
+      if (!iso) return ''
+      const d = new Date(iso)
+      const m = d.getMonth() + 1
+      const day = d.getDate()
+      if (lang.startsWith('zh') || lang.startsWith('ja')) return `${m}月 ${day}日`
+      try { return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) } catch { return `${m}/${day}` }
+    }
+
+    const title = img.getAttribute('data-title') || img.getAttribute('alt') || ''
+    const location = img.getAttribute('data-location') || ''
+    const description = img.getAttribute('data-description') || ''
+    const date = formatDate(img.getAttribute('data-date'))
+
+    // Top bar (close / more)
+    this.topBar = document.createElement('div')
+    Object.assign(this.topBar.style, {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      right: '0',
+      padding: '16px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      zIndex: '3',
+      background: 'linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0))',
+      pointerEvents: 'none',
+    })
+
+    const makeIconBtn = (label: string) => {
+      const btn = document.createElement('button')
+      btn.setAttribute('aria-label', label)
+      Object.assign(btn.style, {
+        width: '40px', height: '40px', borderRadius: '9999px',
+        background: 'rgba(255,255,255,0.12)', color: 'white', border: '1px solid rgba(255,255,255,0.2)',
+        backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'auto'
+      })
+      return btn
+    }
+
+    const closeBtn = makeIconBtn('Close')
+    closeBtn.innerHTML = '&#10005;'
+    closeBtn.addEventListener('click', () => this.close())
+
+    const moreBtn = makeIconBtn('More')
+    moreBtn.innerHTML = '&#8942;'
+
+    this.topBar.appendChild(closeBtn)
+    this.topBar.appendChild(moreBtn)
+
+    // Detail glass sheet
+    this.detailWrap = document.createElement('div')
+    Object.assign(this.detailWrap.style, {
+      position: 'absolute',
+      left: '0', right: '0', bottom: '0',
+      zIndex: '2',
+      padding: '16px 16px 24px 16px',
+      background: 'rgba(24,24,24,0.55)',
+      backdropFilter: 'blur(16px)',
+      borderTop: '1px solid rgba(255,255,255,0.1)',
+      color: 'white',
+    })
+
+    const titleEl = document.createElement('div')
+    titleEl.textContent = title
+    Object.assign(titleEl.style, { fontWeight: '800', fontSize: '20px', marginBottom: '4px' })
+
+    const metaRow = document.createElement('div')
+    Object.assign(metaRow.style, { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '8px' })
+
+    const locationEl = document.createElement('div')
+    locationEl.textContent = location
+    Object.assign(locationEl.style, { opacity: '0.85', fontSize: '13px' })
+
+    const datePill = document.createElement('span')
+    datePill.textContent = date
+    Object.assign(datePill.style, {
+      fontSize: '12px', padding: '4px 8px', borderRadius: '9999px', whiteSpace: 'nowrap',
+      background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)'
+    })
+
+    metaRow.appendChild(locationEl)
+    metaRow.appendChild(datePill)
+
+    const descEl = document.createElement('div')
+    descEl.textContent = description
+    Object.assign(descEl.style, { opacity: '0.9', fontSize: '14px', lineHeight: '1.5', marginTop: '8px' })
+
+    this.detailWrap.appendChild(titleEl)
+    if (location) this.detailWrap.appendChild(metaRow)
+    if (description) this.detailWrap.appendChild(descEl)
+
+    // Attach to overlay
+    this.overlay.appendChild(this.topBar)
+    this.overlay.appendChild(this.detailWrap)
   },
 }
 
