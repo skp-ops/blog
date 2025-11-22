@@ -3,8 +3,7 @@ const ImageZoom = {
   overlay: document.querySelector('.zoom-overlay') as HTMLDivElement | null,
   zoomedImg: null as HTMLImageElement | null,
   originalImg: null as HTMLImageElement | null,
-  detailWrap: null as HTMLDivElement | null,
-  topBar: null as HTMLDivElement | null,
+  infoCard: null as HTMLDivElement | null,
 
   // Create overlay element
   createOverlay() {
@@ -35,7 +34,7 @@ const ImageZoom = {
 
     document.body.appendChild(this.overlay)
 
-    // Close when clicking background (but ignore clicks on detail sheet or top bar)
+    // Close when clicking background (but ignore clicks on floating info card)
     const overlayEl = this.overlay
     overlayEl.addEventListener('click', (e: MouseEvent) => {
       if (e.target === overlayEl) this.close()
@@ -56,14 +55,15 @@ const ImageZoom = {
     // Create and style cloned image
     this.zoomedImg = img.cloneNode() as HTMLImageElement
     Object.assign(this.zoomedImg.style, {
-      position: 'fixed',
+      position: 'absolute',
       top: `${rect.top}px`,
       left: `${rect.left}px`,
       width: `${rect.width}px`,
       height: `${rect.height}px`,
-      transition: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'transform 400ms cubic-bezier(0.2, 0, 0.2, 1)',
       zIndex: '1',
       cursor: 'zoom-out',
+      transformOrigin: 'top left',
     })
 
     // Add to overlay and show
@@ -71,19 +71,33 @@ const ImageZoom = {
     this.overlay.style.display = 'block'
     this.overlay.focus()
 
-    // Calculate scale and position
+    // Calculate target layout
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
-    const scaleFactor = window.innerWidth < 768 ? 1 : 0.8
-    const scale = Math.min(
-      (viewportWidth * scaleFactor) / rect.width,
-      (viewportHeight * scaleFactor) / rect.height,
-    )
-    const translateX = (-rect.left + (viewportWidth - rect.width) / 2) / scale
-    const translateY = (-rect.top + (viewportHeight - rect.height) / 2) / scale
+    const isDesktop = viewportWidth > 768
+    
+    let targetCenterX, targetCenterY, maxW, maxH;
+    
+    if (isDesktop) {
+        const infoWidth = 380 // Card width + margin
+        const availW = viewportWidth - infoWidth
+        targetCenterX = availW / 2
+        targetCenterY = viewportHeight / 2
+        maxW = availW - 60
+        maxH = viewportHeight - 60
+    } else {
+        const infoHeight = 280 // Card height + margin
+        const availH = viewportHeight - infoHeight
+        targetCenterX = viewportWidth / 2
+        targetCenterY = (availH / 2) + 20 // Add some top padding
+        maxW = viewportWidth - 30
+        maxH = availH - 60 // More vertical padding
+    }
 
-    // Build and attach details UI
-    this.attachDetailsFrom(img)
+    const scale = Math.min(maxW / rect.width, maxH / rect.height)
+
+    // Build and attach floating info UI
+    this.attachInfoCard(img)
 
     // Start animation
     requestAnimationFrame(() => {
@@ -92,7 +106,12 @@ const ImageZoom = {
       }
 
       if (this.zoomedImg) {
-        this.zoomedImg.style.transform = `scale(${scale}) translate3d(${translateX}px, ${translateY}px, 0)`
+        const targetTLX = targetCenterX - (rect.width * scale) / 2
+        const targetTLY = targetCenterY - (rect.height * scale) / 2
+        const moveX = targetTLX - rect.left
+        const moveY = targetTLY - rect.top
+        
+        this.zoomedImg.style.transform = `translate3d(${moveX}px, ${moveY}px, 0) scale(${scale})`
       }
     })
   },
@@ -103,8 +122,18 @@ const ImageZoom = {
       return
     }
 
+    const isDesktop = window.innerWidth > 768
+
     // Reset transform and start closing animation
     if (this.zoomedImg) this.zoomedImg.style.transform = ''
+    if (this.infoCard) {
+      this.infoCard.style.opacity = '0'
+      if (isDesktop) {
+        this.infoCard.style.transform = 'translateY(-50%) translateX(20px)'
+      } else {
+        this.infoCard.style.transform = 'translateX(-50%) translateY(20px)'
+      }
+    }
     this.overlay.style.opacity = '0'
     document.body.style.overflow = ''
 
@@ -119,11 +148,9 @@ const ImageZoom = {
         this.overlay.style.display = 'none'
       }
 
-      // Remove detail sheet and top bar
-      if (this.detailWrap && this.detailWrap.parentNode) this.detailWrap.parentNode.removeChild(this.detailWrap)
-      if (this.topBar && this.topBar.parentNode) this.topBar.parentNode.removeChild(this.topBar)
-      this.detailWrap = null
-      this.topBar = null
+      // Remove floating info card
+      if (this.infoCard && this.infoCard.parentNode) this.infoCard.parentNode.removeChild(this.infoCard)
+      this.infoCard = null
 
       // Restore original image and focus
       if (this.originalImg) {
@@ -179,8 +206,8 @@ const ImageZoom = {
     window.addEventListener('resize', () => this.handleResize(), { passive: true })
   },
 
-  // Build iOS-style glass details from image dataset
-  attachDetailsFrom(img: HTMLImageElement) {
+  // Create floating glass info card (centered lower portion)
+  attachInfoCard(img: HTMLImageElement) {
     if (!this.overlay) return
 
     const lang = document.documentElement.lang || 'en'
@@ -198,89 +225,132 @@ const ImageZoom = {
     const description = img.getAttribute('data-description') || ''
     const date = formatDate(img.getAttribute('data-date'))
 
-    // Top bar (close / more)
-    this.topBar = document.createElement('div')
-    Object.assign(this.topBar.style, {
+    this.infoCard = document.createElement('div')
+    this.infoCard.setAttribute('role', 'group')
+    
+    const isDesktop = window.innerWidth > 768
+
+    Object.assign(this.infoCard.style, {
       position: 'absolute',
-      top: '0',
-      left: '0',
-      right: '0',
-      padding: '16px',
+      padding: '20px 22px 24px 22px',
+      borderRadius: '28px',
+      background: 'linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08))',
+      backdropFilter: 'blur(28px) saturate(140%)',
+      WebkitBackdropFilter: 'blur(28px) saturate(140%)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.25)',
+      color: 'white',
+      zIndex: '2',
       display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      zIndex: '3',
-      background: 'linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0))',
-      pointerEvents: 'none',
+      flexDirection: 'column',
+      gap: '10px',
+      opacity: '0',
+      transition: 'opacity .35s ease, transform .45s cubic-bezier(.16,.84,.44,1)',
+      backdropBlendMode: 'overlay',
     })
 
-    const makeIconBtn = (label: string) => {
-      const btn = document.createElement('button')
-      btn.setAttribute('aria-label', label)
-      Object.assign(btn.style, {
-        width: '40px', height: '40px', borderRadius: '9999px',
-        background: 'rgba(255,255,255,0.12)', color: 'white', border: '1px solid rgba(255,255,255,0.2)',
-        backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        pointerEvents: 'auto'
-      })
-      return btn
+    if (isDesktop) {
+       Object.assign(this.infoCard.style, {
+         right: '24px',
+         top: '50%',
+         transform: 'translateY(-50%) translateX(20px)',
+         width: '320px',
+         maxHeight: '80vh',
+         overflowY: 'auto',
+       })
+    } else {
+       Object.assign(this.infoCard.style, {
+         left: '50%',
+         bottom: '24px',
+         transform: 'translateX(-50%) translateY(20px)',
+         width: 'min(90vw, 520px)',
+         maxHeight: '40vh',
+         overflowY: 'auto',
+       })
     }
 
-    const closeBtn = makeIconBtn('Close')
-    closeBtn.innerHTML = '&#10005;'
-    closeBtn.addEventListener('click', () => this.close())
-
-    const moreBtn = makeIconBtn('More')
-    moreBtn.innerHTML = '&#8942;'
-
-    this.topBar.appendChild(closeBtn)
-    this.topBar.appendChild(moreBtn)
-
-    // Detail glass sheet
-    this.detailWrap = document.createElement('div')
-    Object.assign(this.detailWrap.style, {
+    const closeBtn = document.createElement('button')
+    closeBtn.setAttribute('aria-label', 'Close')
+    Object.assign(closeBtn.style, {
       position: 'absolute',
-      left: '0', right: '0', bottom: '0',
-      zIndex: '2',
-      padding: '16px 16px 24px 16px',
-      background: 'rgba(24,24,24,0.55)',
-      backdropFilter: 'blur(16px)',
-      borderTop: '1px solid rgba(255,255,255,0.1)',
+      top: '10px',
+      right: '12px',
+      width: '34px', height: '34px', borderRadius: '50%',
+      border: '1px solid rgba(255,255,255,0.35)',
+      background: 'rgba(0,0,0,0.35)',
       color: 'white',
+      fontSize: '16px',
+      lineHeight: '32px',
+      textAlign: 'center',
+      cursor: 'pointer',
+      backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+      transition: 'background .2s',
     })
+    closeBtn.textContent = '×'
+    closeBtn.addEventListener('click', () => this.close())
 
     const titleEl = document.createElement('div')
     titleEl.textContent = title
-    Object.assign(titleEl.style, { fontWeight: '800', fontSize: '20px', marginBottom: '4px' })
-
-    const metaRow = document.createElement('div')
-    Object.assign(metaRow.style, { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '8px' })
-
-    const locationEl = document.createElement('div')
-    locationEl.textContent = location
-    Object.assign(locationEl.style, { opacity: '0.85', fontSize: '13px' })
-
-    const datePill = document.createElement('span')
-    datePill.textContent = date
-    Object.assign(datePill.style, {
-      fontSize: '12px', padding: '4px 8px', borderRadius: '9999px', whiteSpace: 'nowrap',
-      background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)'
+    Object.assign(titleEl.style, {
+      fontSize: 'clamp(1.1rem,2.2vw,1.4rem)',
+      fontWeight: '700',
+      letterSpacing: '.5px',
+      lineHeight: '1.3',
+      textShadow: '0 2px 4px rgba(0,0,0,0.4)',
     })
 
-    metaRow.appendChild(locationEl)
-    metaRow.appendChild(datePill)
+    const metaRow = document.createElement('div')
+    Object.assign(metaRow.style, {
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px',
+      fontSize: '13px', opacity: '.85'
+    })
 
-    const descEl = document.createElement('div')
-    descEl.textContent = description
-    Object.assign(descEl.style, { opacity: '0.9', fontSize: '14px', lineHeight: '1.5', marginTop: '8px' })
+    if (location) {
+      const locEl = document.createElement('span')
+      locEl.textContent = location
+      Object.assign(locEl.style, { display: 'inline-flex', alignItems: 'center', gap: '4px' })
+      metaRow.appendChild(locEl)
+    }
+    if (date) {
+      const dateEl = document.createElement('span')
+      dateEl.textContent = date
+      Object.assign(dateEl.style, {
+        padding: '4px 10px', borderRadius: '9999px',
+        background: 'rgba(255,255,255,0.15)',
+        border: '1px solid rgba(255,255,255,0.3)',
+        fontSize: '12px', letterSpacing: '.5px'
+      })
+      metaRow.appendChild(dateEl)
+    }
 
-    this.detailWrap.appendChild(titleEl)
-    if (location) this.detailWrap.appendChild(metaRow)
-    if (description) this.detailWrap.appendChild(descEl)
+    if (description) {
+      const descEl = document.createElement('div')
+      descEl.textContent = description
+      Object.assign(descEl.style, {
+        fontSize: '14px', lineHeight: '1.55', opacity: '.92',
+        textOverflow: 'ellipsis'
+      })
+      this.infoCard.appendChild(descEl)
+    }
 
-    // Attach to overlay
-    this.overlay.appendChild(this.topBar)
-    this.overlay.appendChild(this.detailWrap)
+    this.infoCard.appendChild(closeBtn)
+    this.infoCard.appendChild(titleEl)
+    if (location || date) this.infoCard.appendChild(metaRow)
+
+    this.overlay.appendChild(this.infoCard)
+
+    // Animate in
+    requestAnimationFrame(() => {
+      if (this.infoCard) {
+        this.infoCard.style.opacity = '1'
+        if (isDesktop) {
+            this.infoCard.style.transform = 'translateY(-50%) translateX(0)'
+        } else {
+            this.infoCard.style.transform = 'translateX(-50%) translateY(0)'
+        }
+      }
+    })
   },
 }
 

@@ -1,0 +1,352 @@
+import React, { useState, useEffect } from 'react';
+import { Heart, MessageCircle, Share, MapPin, Camera, Aperture, X, Grid, User, Bookmark, MoreHorizontal } from 'lucide-react';
+
+const IOSPhotoBlog = () => {
+  const [activeTab, setActiveTab] = useState('gallery');
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [likedPhotos, setLikedPhotos] = useState(new Set());
+  const [currentTime, setCurrentTime] = useState('');
+
+  // 模拟 iOS 顶部时间显示
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 摄影数据 (Mock Data)
+  const photos = [
+    {
+      id: 1,
+      url: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+      title: "阿尔卑斯的清晨",
+      location: "Swiss Alps",
+      date: "10月 24日",
+      camera: "Leica M10",
+      lens: "35mm f/1.4",
+      likes: 128,
+      desc: "清晨的第一缕阳光穿过山谷，雾气还未散去。这种静谧的感觉是无法用语言形容的。"
+    },
+    {
+      id: 2,
+      url: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+      title: "胶片里的东京",
+      location: "Shinjuku, Tokyo",
+      date: "11月 02日",
+      camera: "Fujifilm X-Pro3",
+      lens: "23mm f/2",
+      likes: 89,
+      desc: "雨后的新宿街头，霓虹灯倒映在积水中。经典的赛博朋克氛围。"
+    },
+    {
+      id: 3,
+      url: "https://images.unsplash.com/photo-1504280509247-031524f72587?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+      title: "孤独的冲浪者",
+      location: "Gold Coast",
+      date: "11月 15日",
+      camera: "Sony A7IV",
+      lens: "70-200mm GM",
+      likes: 245,
+      desc: "等待下一个完美的浪头。海的颜色今天格外深沉。"
+    },
+    {
+      id: 4,
+      url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+      title: "秋意浓",
+      location: "Kyoto, Japan",
+      date: "11月 20日",
+      camera: "Canon R5",
+      lens: "50mm f/1.2",
+      likes: 156,
+      desc: "京都的红叶季，不需要滤镜的色彩。"
+    },
+    {
+      id: 5,
+      url: "https://images.unsplash.com/photo-1531306728370-e2ebd9d7bb99?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+      title: "星际穿越",
+      location: "Iceland",
+      date: "12月 01日",
+      camera: "Nikon Z7 II",
+      lens: "14-24mm f/2.8",
+      likes: 312,
+      desc: "在这个星球上最像外星的地方，感受自然的宏大。"
+    },
+     {
+      id: 6,
+      url: "https://images.unsplash.com/photo-1554080353-a576cf803bda?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+      title: "光影几何",
+      location: "Bauhaus Museum",
+      date: "12月 05日",
+      camera: "Ricoh GR III",
+      lens: "18.3mm f/2.8",
+      likes: 92,
+      desc: "建筑摄影的魅力在于寻找秩序与混乱的边界。"
+    }
+  ];
+
+  const toggleLike = (e, id) => {
+    e.stopPropagation();
+    const newLiked = new Set(likedPhotos);
+    if (newLiked.has(id)) {
+      newLiked.delete(id);
+    } else {
+      newLiked.add(id);
+    }
+    setLikedPhotos(newLiked);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 font-sans text-white relative overflow-hidden selection:bg-blue-500/30">
+      
+      {/* 动态背景 (Abstract Background) */}
+      <div className="fixed inset-0 z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/30 rounded-full mix-blend-screen filter blur-[100px] animate-pulse"></div>
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-blue-600/30 rounded-full mix-blend-screen filter blur-[100px]"></div>
+        <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-pink-600/20 rounded-full mix-blend-screen filter blur-[120px] animate-pulse delay-1000"></div>
+        <img 
+          src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80" 
+          alt="background" 
+          className="w-full h-full object-cover opacity-20"
+        />
+      </div>
+
+      {/* 主容器 (Main Container - Mobile Style on Desktop) */}
+      <div className="relative z-10 max-w-md mx-auto h-screen flex flex-col bg-black/10 backdrop-blur-sm border-x border-white/5 shadow-2xl">
+        
+        {/* iOS 风格顶部栏 */}
+        <div className="pt-2 px-6 pb-2 flex justify-between items-end text-xs font-medium text-white/90">
+          <span>{currentTime}</span>
+          <div className="flex gap-1.5 items-center">
+             <div className="w-4 h-2.5 bg-white rounded-[2px] opacity-90"></div>{/* Signal */}
+             <div className="w-3 h-2.5 bg-white rounded-[2px] opacity-90"></div>{/* Wifi */}
+             <div className="w-5 h-2.5 border border-white/50 rounded-[3px] relative">
+               <div className="absolute inset-[1px] bg-white w-[60%] rounded-[1px]"></div>
+             </div>
+          </div>
+        </div>
+
+        {/* 顶部个人资料卡片 (Profile Glass Card) */}
+        <div className="px-4 py-4 shrink-0">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-[32px] p-5 shadow-lg relative overflow-hidden group transition-all duration-300 hover:bg-white/15">
+             <div className="flex items-center gap-4">
+               <div className="relative">
+                 <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600">
+                   <img 
+                     src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" 
+                     className="w-full h-full rounded-full border-2 border-black object-cover" 
+                     alt="Avatar"
+                   />
+                 </div>
+               </div>
+               <div className="flex-1">
+                 <h1 className="text-xl font-bold tracking-tight">Alex.Lens</h1>
+                 <p className="text-xs text-white/60 mt-0.5">视觉叙事者 | 胶片爱好者</p>
+                 <div className="flex gap-4 mt-3 text-sm">
+                   <div className="text-center"><span className="font-bold">245</span> <span className="text-white/50 text-xs">作品</span></div>
+                   <div className="text-center"><span className="font-bold">12k</span> <span className="text-white/50 text-xs">粉丝</span></div>
+                   <div className="text-center"><span className="font-bold">89</span> <span className="text-white/50 text-xs">关注</span></div>
+                 </div>
+               </div>
+               <button className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
+                  <Share size={18} />
+               </button>
+             </div>
+          </div>
+        </div>
+
+        {/* 标签切换 */}
+        <div className="flex px-8 border-b border-white/5 pb-2 mb-2 sticky top-0 z-20 shrink-0">
+          {['gallery', 'journal', 'likes'].map((tab) => (
+             <button 
+               key={tab}
+               onClick={() => setActiveTab(tab)}
+               className={`flex-1 pb-2 text-sm font-medium transition-all relative ${activeTab === tab ? 'text-white' : 'text-white/40'}`}
+             >
+               {tab === 'gallery' && '作品集'}
+               {tab === 'journal' && '日志'}
+               {tab === 'likes' && '喜欢'}
+               {activeTab === tab && (
+                 <div className="absolute bottom-[-1px] left-1/2 -translate-x-1/2 w-8 h-[3px] bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]"></div>
+               )}
+             </button>
+          ))}
+        </div>
+
+        {/* 内容滚动区域 */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pb-24 px-4">
+          <div className="grid grid-cols-1 gap-6">
+            {photos.map((photo) => (
+              <div 
+                key={photo.id} 
+                onClick={() => setSelectedPhoto(photo)}
+                className="group relative flex flex-col bg-white/5 backdrop-blur-md border border-white/10 rounded-[24px] overflow-hidden shadow-lg transition-transform duration-300 active:scale-95 cursor-pointer"
+              >
+                {/* 图片区 */}
+                <div className="relative aspect-[4/3] overflow-hidden">
+                   <img 
+                     src={photo.url} 
+                     alt={photo.title}
+                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                   />
+                   <div className="absolute top-3 right-3">
+                      <button 
+                        onClick={(e) => toggleLike(e, photo.id)}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-300 ${likedPhotos.has(photo.id) ? 'bg-pink-500/80 text-white' : 'bg-black/30 text-white/70 hover:bg-black/50'}`}
+                      >
+                        <Heart size={14} fill={likedPhotos.has(photo.id) ? "currentColor" : "none"} />
+                      </button>
+                   </div>
+                </div>
+
+                {/* 底部信息区 (Frosted Overlay) */}
+                <div className="p-4 bg-gradient-to-b from-white/5 to-white/0">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-lg leading-tight">{photo.title}</h3>
+                      <div className="flex items-center gap-1 text-xs text-white/50 mt-1">
+                        <MapPin size={10} />
+                        <span>{photo.location}</span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono text-white/40 bg-white/5 px-2 py-1 rounded-full">{photo.date}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 底部留白，防止被 Tabbar 遮挡 */}
+          <div className="h-8"></div>
+        </div>
+
+        {/* 底部导航栏 (Glass Tab Bar) */}
+        <div className="absolute bottom-0 left-0 right-0 h-20 bg-black/40 backdrop-blur-xl border-t border-white/10 flex justify-around items-start pt-4 z-30">
+           <button className="flex flex-col items-center gap-1 text-white">
+             <Grid size={24} strokeWidth={2.5} />
+           </button>
+           <button className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-colors">
+             <Camera size={24} strokeWidth={2.5} />
+           </button>
+           <button className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-colors">
+             <Bookmark size={24} strokeWidth={2.5} />
+           </button>
+           <button className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-colors">
+             <User size={24} strokeWidth={2.5} />
+           </button>
+        </div>
+
+        {/* 底部 Home Bar */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1.5 bg-white/30 rounded-full z-40"></div>
+      </div>
+
+      {/* 详情页模态框 (Full Screen Modal) */}
+      {selectedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+          {/* 背景遮罩 */}
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-2xl"
+            onClick={() => setSelectedPhoto(null)}
+          ></div>
+
+          {/* 模态卡片 */}
+          <div className="relative w-full h-full sm:h-auto sm:max-w-md bg-gray-900 sm:rounded-[40px] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+            
+            {/* 顶部控制栏 */}
+            <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-20 bg-gradient-to-b from-black/60 to-transparent">
+               <button 
+                 onClick={() => setSelectedPhoto(null)}
+                 className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20"
+               >
+                 <X size={20} />
+               </button>
+               <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20">
+                 <MoreHorizontal size={20} />
+               </button>
+            </div>
+
+            {/* 大图 */}
+            <div className="flex-1 relative bg-black flex items-center justify-center">
+              <img 
+                src={selectedPhoto.url} 
+                alt={selectedPhoto.title} 
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+
+            {/* 底部详情信息 (Glass Sheet) */}
+            <div className="bg-gray-800/60 backdrop-blur-3xl border-t border-white/10 p-6 pb-10">
+               <div className="flex justify-between items-start mb-4">
+                 <div>
+                   <h2 className="text-2xl font-bold text-white mb-1">{selectedPhoto.title}</h2>
+                   <div className="flex items-center gap-1.5 text-white/60 text-sm">
+                      <MapPin size={14} />
+                      {selectedPhoto.location}
+                   </div>
+                 </div>
+                 <button 
+                    onClick={(e) => toggleLike(e, selectedPhoto.id)}
+                    className="flex flex-col items-center gap-1"
+                 >
+                    <Heart 
+                      size={28} 
+                      fill={likedPhotos.has(selectedPhoto.id) ? "#ec4899" : "none"} 
+                      className={likedPhotos.has(selectedPhoto.id) ? "text-pink-500" : "text-white/50"} 
+                    />
+                    <span className="text-xs text-white/40">{selectedPhoto.likes + (likedPhotos.has(selectedPhoto.id) ? 1 : 0)}</span>
+                 </button>
+               </div>
+
+               <p className="text-white/80 text-sm leading-relaxed mb-6 font-light">
+                 {selectedPhoto.desc}
+               </p>
+
+               {/* EXIF 数据卡片 */}
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="bg-white/5 rounded-2xl p-3 border border-white/5 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                      <Camera size={16} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider">Camera</span>
+                      <span className="text-xs font-medium text-white/90">{selectedPhoto.camera}</span>
+                    </div>
+                 </div>
+                 <div className="bg-white/5 rounded-2xl p-3 border border-white/5 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
+                      <Aperture size={16} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider">Lens</span>
+                      <span className="text-xs font-medium text-white/90">{selectedPhoto.lens}</span>
+                    </div>
+                 </div>
+               </div>
+               
+               {/* 底部 Home Bar 适配 */}
+               <div className="h-6 w-full flex justify-center items-end mt-2">
+                 <div className="w-32 h-1.5 bg-white/20 rounded-full"></div>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 样式补充：隐藏滚动条 */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default IOSPhotoBlog;
