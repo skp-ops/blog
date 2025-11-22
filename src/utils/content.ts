@@ -200,7 +200,7 @@ async function _getAllTags(lang?: string) {
 
 export const getAllTags = memoize(_getAllTags)
 
-export type TagWithCount = {
+export interface TagWithCount {
   name: string
   count: number
 }

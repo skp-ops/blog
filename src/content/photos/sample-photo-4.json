@@ -1,0 +1,9 @@
+{
+  "title": "Forest Path",
+  "description": "A serene path through the forest",
+  "date": "2024-02-10T00:00:00.000Z",
+  "image": "/gallery/placeholder.svg",
+  "thumbnail": "/gallery/placeholder.svg",
+  "tags": ["nature", "forest", "trees"],
+  "location": "National Park"
+}

@@ -8,8 +8,7 @@ import BackButton from '@/components/Widgets/BackButton.astro'
 import CopyLink from '@/components/Widgets/CopyLink.astro'
 import LikeButton from '@/components/Widgets/LikeButton.astro'
 import TOC from '@/components/Widgets/TOC.astro'
-import themeConfig from '@/config'
-import { allLocales, defaultLocale, moreLocales } from '@/config'
+import themeConfig, { allLocales, defaultLocale, moreLocales } from '@/config'
 import Layout from '@/layouts/Layout.astro'
 import { checkPostSlugDuplication } from '@/utils/content'
 import { getPostDescription } from '@/utils/description'
@@ -145,13 +144,13 @@ const postUrl = `${themeConfig.site.url}/posts/${slug}/`
       <Content />
       <!-- Copyright -->
       <div id="post-copyright" />
-      
+
       <!-- Action Buttons -->
-      <div class="mt-8 mb-6 flex flex-wrap gap-4 items-center">
+      <div class="mb-6 mt-8 flex flex-wrap items-center gap-4">
         <CopyLink url={postUrl} />
         <LikeButton postSlug={slug} />
       </div>
-      
+
       <!-- Tag List -->
       {post.data.tags?.length > 0 && (
         <div class="mt-12.6 uno-decorative-line" />

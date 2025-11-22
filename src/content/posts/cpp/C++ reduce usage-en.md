@@ -138,7 +138,7 @@ void Reduce::ParallelDemo()
 	// Create a sufficiently large dataset
 	const size_t dataSize = 100'000'000; // One hundred million elements
 	std::vector<double> large_vec(dataSize);
-	
+
 	// Fill the vector with simple values
 	std::fill(std::execution::par, large_vec.begin(), large_vec.end(), 0.12);
 	std::cout << "Comparing Performance on " << dataSize << " elements " << std::endl;
@@ -148,18 +148,18 @@ void Reduce::ParallelDemo()
 	auto endAcc = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> timeAcc = endAcc - startAcc;
 	std::cout << "std::accumulate (sequential) took: " << timeAcc.count() << " ms." << std::endl;
-	
+
 	// std::reduce (parallel execution) and timing
 	auto startReduce = std::chrono::high_resolution_clock::now();
-	
+
 	// The first parameter std::execution::par tells reduce to use a parallel strategy
 	double sumReduce = std::reduce(std::execution::par, large_vec.begin(), large_vec.end(), 0.0);
-	auto endReduce = std::chrono::high_resolution_clock::now(); 
-	std::chrono::duration<double, std::milli> timeReduce = endReduce - startReduce; 
-	std::cout << "std::reduce (parallel) took: " << timeReduce.count() << " ms." << std::endl; 
-	
-	// print results 
-	std::cout << "Accumulate result: " << sumAcc << std::endl; 
+	auto endReduce = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> timeReduce = endReduce - startReduce;
+	std::cout << "std::reduce (parallel) took: " << timeReduce.count() << " ms." << std::endl;
+
+	// print results
+	std::cout << "Accumulate result: " << sumAcc << std::endl;
 	std::cout << "Reduce result: " << sumReduce << std::endl;
 }
 ```

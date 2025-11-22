@@ -4,7 +4,7 @@ published: 2025-11-15
 updated: 2025-11-15
 description: std::reduce 是 C++ 17 引入的算法，使用方式和 std::accumulate 类似，位于<numeric> 头文件中 ，它用于计算一个范围（如数组或容器）中元素的“广义求和”，类似于将所有元素逐步合并成一个结果。默认使用加法，但可自定义操作（如乘法）。其核心优势是支持并行执行，适用于大规模数据，提高效率。
 tags:
-  - cpp                              
+  - cpp
 toc: true
 lang: zh
 abbrlink: cpp-reduce

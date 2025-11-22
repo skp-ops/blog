@@ -1,0 +1,309 @@
+---
+import { getCollection } from 'astro:content'
+import { defaultLocale, moreLocales } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+
+export async function getStaticPaths() {
+  type PathItem = {
+    params: { gallery: string }
+    props: { lang: string }
+  }
+
+  const paths: PathItem[] = []
+
+  // Default locale
+  paths.push({
+    params: { gallery: 'gallery/' },
+    props: { lang: defaultLocale },
+  })
+
+  // More locales
+  moreLocales.forEach((lang: string) => {
+    paths.push({
+      params: { gallery: `${lang}/gallery/` },
+      props: { lang },
+    })
+  })
+
+  return paths
+}
+
+const { lang } = Astro.props
+const photos = await getCollection('photos')
+
+// Sort photos by date (newest first)
+const sortedPhotos = photos.sort((a, b) =>
+  new Date(b.data.date).getTime() - new Date(a.data.date).getTime(),
+)
+
+// Get translation text
+const translations = {
+  en: { title: 'Gallery', totalPhotos: 'Total', photos: 'photos' },
+  zh: { title: '相册', totalPhotos: '共', photos: '张照片' },
+  ja: { title: 'ギャラリー', totalPhotos: '合計', photos: '枚の写真' },
+}
+const t = translations[lang as keyof typeof translations] || translations.en
+---
+
+<Layout>
+  <div class="gallery-page">
+    <h1 class="gallery-title">{t.title}</h1>
+    <p class="gallery-desc">
+      {t.totalPhotos} {sortedPhotos.length} {t.photos}
+    </p>
+
+    <div class="gallery-grid">
+      {sortedPhotos.map(photo => (
+        <div class="gallery-item" data-photo-id={photo.id}>
+          <div class="gallery-card">
+            <div class="gallery-image-wrapper">
+              <img
+                src={photo.data.thumbnail || photo.data.image}
+                alt={photo.data.title}
+                class="gallery-image"
+                loading="lazy"
+                data-full-image={photo.data.image}
+              />
+            </div>
+            <div class="gallery-info">
+              <h3 class="gallery-photo-title">{photo.data.title}</h3>
+              {photo.data.description && (
+                <p class="gallery-photo-desc">{photo.data.description}</p>
+              )}
+              {photo.data.location && (
+                <p class="gallery-photo-location">
+                  <svg class="gallery-location-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  {photo.data.location}
+                </p>
+              )}
+              {photo.data.tags && photo.data.tags.length > 0 && (
+                <div class="gallery-tags">
+                  {photo.data.tags.map(tag => (
+                    <span class="gallery-tag">{tag}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .gallery-page {
+    width: 100%;
+  }
+
+  .gallery-title {
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: oklch(var(--un-preset-theme-colors-primary));
+    margin-bottom: 0.75rem;
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-title {
+      font-size: 2rem;
+    }
+  }
+
+  .gallery-desc {
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    margin-bottom: 2.5rem;
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-desc {
+      margin-bottom: 3rem;
+    }
+  }
+
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .gallery-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.75rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-grid {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+    }
+  }
+
+  .gallery-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .gallery-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    backdrop-filter: blur(10px);
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.05);
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.1);
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px oklch(var(--un-preset-theme-colors-secondary) / 0.08);
+  }
+
+  .gallery-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.2);
+  }
+
+  .gallery-image-wrapper {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 0.75rem 0.75rem 0 0;
+    cursor: zoom-in;
+  }
+
+  .gallery-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    transition: transform 0.4s ease;
+  }
+
+  .gallery-card:hover .gallery-image {
+    transform: scale(1.05);
+  }
+
+  .gallery-info {
+    padding: 1.25rem;
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-info {
+      padding: 1.5rem;
+    }
+  }
+
+  .gallery-photo-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: oklch(var(--un-preset-theme-colors-primary));
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-photo-title {
+      font-size: 1.25rem;
+    }
+  }
+
+  .gallery-photo-desc {
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary) / 0.8);
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+  }
+
+  .gallery-photo-location {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: oklch(var(--un-preset-theme-colors-secondary) / 0.7);
+    margin-bottom: 0.75rem;
+  }
+
+  .gallery-location-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  .gallery-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .gallery-tag {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.1);
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+  }
+
+  .gallery-tag:hover {
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-tag {
+      font-size: 0.8125rem;
+    }
+  }
+</style>
+
+<script>
+  // Handle image click for zoom
+  document.addEventListener('astro:page-load', () => {
+    const images = document.querySelectorAll('.gallery-image')
+
+    images.forEach((img) => {
+      img.addEventListener('click', (e) => {
+        const target = e.target as HTMLImageElement
+        const fullImage = target.getAttribute('data-full-image')
+
+        // If full image URL exists, replace the src temporarily for zoom
+        if (fullImage && fullImage !== target.src) {
+          const originalSrc = target.src
+          target.src = fullImage
+
+          // Wait for ImageZoom overlay to be created and observe it
+          const setupObserver = () => {
+            const zoomOverlay = document.querySelector('.zoom-overlay') as HTMLElement
+            if (!zoomOverlay) {
+              return
+            }
+
+            // Restore original after zoom closes
+            const observer = new MutationObserver(() => {
+              try {
+                if (!zoomOverlay || zoomOverlay.style.display === 'none') {
+                  target.src = originalSrc
+                  observer.disconnect()
+                }
+              }
+              catch {
+                observer.disconnect()
+              }
+            })
+
+            observer.observe(zoomOverlay, { attributes: true, attributeFilter: ['style'] })
+          }
+
+          // Use requestAnimationFrame to wait for overlay creation
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setupObserver()
+            })
+          })
+        }
+      })
+    })
+  })
+</script>

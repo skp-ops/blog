@@ -9,7 +9,7 @@ const { postSlug } = Astro.props
 <div class="like-button-container">
   <button class="like-button" data-slug={postSlug} aria-label="点赞">
     <svg class="like-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
     <span class="like-count">0</span>
   </button>
@@ -99,103 +99,110 @@ const { postSlug } = Astro.props
 </style>
 
 <script>
-  function initLikeButton() {
-    const buttons = document.querySelectorAll('.like-button')
-    
-    buttons.forEach(button => {
-      const slug = button.getAttribute('data-slug')
-      if (!slug) return
-      
-      const countSpan = button.querySelector('.like-count')
-      if (!countSpan) return
-      
-      // Keys for localStorage
-      const likeKey = `blog-like-${slug}`
-      const countKey = `blog-like-count-${slug}`
-      
-      // Check if we're in production (has API) or development (use localStorage)
-      const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      
-      // Load like status from localStorage (user's personal like state)
-      const isLiked = localStorage.getItem(likeKey) === 'true'
-      
-      // Set initial liked state
-      if (isLiked) {
-        button.classList.add('liked')
+function initLikeButton() {
+  const buttons = document.querySelectorAll('.like-button')
+
+  buttons.forEach((button) => {
+    const slug = button.getAttribute('data-slug')
+    if (!slug)
+      return
+
+    const countSpan = button.querySelector('.like-count')
+    if (!countSpan)
+      return
+
+    // Keys for localStorage
+    const likeKey = `blog-like-${slug}`
+    const countKey = `blog-like-count-${slug}`
+
+    // Check if we're in production (has API) or development (use localStorage)
+    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+    // Load like status from localStorage (user's personal like state)
+    const isLiked = localStorage.getItem(likeKey) === 'true'
+
+    // Set initial liked state
+    if (isLiked) {
+      button.classList.add('liked')
+    }
+
+    // Load initial count
+    if (isDevelopment) {
+      // Use localStorage in development
+      const localCount = localStorage.getItem(countKey) || '0'
+      countSpan.textContent = localCount
+    }
+    else {
+      // Fetch from API in production
+      fetch(`/api/likes/${slug}`)
+        .then(res => res.json())
+        .then((data) => {
+          countSpan.textContent = data.count.toString()
+        })
+        .catch((err) => {
+          console.error('Error fetching likes:', err)
+          countSpan.textContent = '0'
+        })
+    }
+
+    // Handle click
+    button.addEventListener('click', async () => {
+      const currentlyLiked = button.classList.contains('liked')
+
+      // If already liked, do nothing
+      if (currentlyLiked) {
+        return
       }
-      
-      // Load initial count
+
       if (isDevelopment) {
         // Use localStorage in development
-        const localCount = localStorage.getItem(countKey) || '0'
-        countSpan.textContent = localCount
-      } else {
-        // Fetch from API in production
-        fetch(`/api/likes/${slug}`)
-          .then(res => res.json())
-          .then(data => {
-            countSpan.textContent = data.count.toString()
-          })
-          .catch(err => {
-            console.error('Error fetching likes:', err)
-            countSpan.textContent = '0'
-          })
+        const currentCount = Number.parseInt(localStorage.getItem(countKey) || '0', 10)
+        const newCount = currentCount + 1
+
+        button.classList.add('liked', 'animate')
+        localStorage.setItem(likeKey, 'true')
+        localStorage.setItem(countKey, newCount.toString())
+        countSpan.textContent = newCount.toString()
+
+        setTimeout(() => {
+          button.classList.remove('animate')
+        }, 600)
       }
-      
-      // Handle click
-      button.addEventListener('click', async () => {
-        const currentlyLiked = button.classList.contains('liked')
-        
-        // If already liked, do nothing
-        if (currentlyLiked) {
-          return
-        }
-        
-        if (isDevelopment) {
-          // Use localStorage in development
-          const currentCount = parseInt(localStorage.getItem(countKey) || '0', 10)
-          const newCount = currentCount + 1
-          
-          button.classList.add('liked', 'animate')
-          localStorage.setItem(likeKey, 'true')
-          localStorage.setItem(countKey, newCount.toString())
-          countSpan.textContent = newCount.toString()
-          
-          setTimeout(() => {
-            button.classList.remove('animate')
-          }, 600)
-        } else {
-          // Use API in production
-          try {
-            const response = await fetch(`/api/likes/${slug}`, { method: 'POST' })
-            const data = await response.json()
-            
-            if (response.ok) {
-              button.classList.add('liked', 'animate')
-              localStorage.setItem(likeKey, 'true')
-              countSpan.textContent = data.count.toString()
-              
-              setTimeout(() => {
-                button.classList.remove('animate')
-              }, 600)
-            } else {
-              console.error('Error updating like:', data.error)
-            }
-          } catch (error) {
-            console.error('Error updating like:', error)
+      else {
+        // Use API in production
+        try {
+          const response = await fetch(`/api/likes/${slug}`, { method: 'POST' })
+          const data = await response.json()
+
+          if (response.ok) {
+            button.classList.add('liked', 'animate')
+            localStorage.setItem(likeKey, 'true')
+            countSpan.textContent = data.count.toString()
+
+            setTimeout(() => {
+              button.classList.remove('animate')
+            }, 600)
+          }
+          else {
+            console.error('Error updating like:', data.error)
           }
         }
-      })
+        catch (error) {
+          console.error('Error updating like:', error)
+        }
+      }
     })
-  }
-  
-  // Initialize on page load
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initLikeButton)
-  } else {
-    initLikeButton()
-  }
-  
-  // Re-initialize after Astro view transitions
-  document.addEventListener('astro:after-swap', initLikeButton)
+  })
+}
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLikeButton)
+}
+else {
+  initLikeButton()
+}
+
+// Re-initialize after Astro view transitions
+document.addEventListener('astro:after-swap', initLikeButton)
 </script>

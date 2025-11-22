@@ -1,34 +1,37 @@
 export const ui = {
-  'en': {
-    title: "Kun's Blog",
+  en: {
+    title: 'Kun\'s Blog',
     subtitle: 'code | coffee | capture',
     description: 'A simple personal blog',
     posts: 'Posts',
     tags: 'Tags',
     about: 'About',
     timeline: 'Timeline',
+    gallery: 'Gallery',
     toc: 'Table of Contents',
     search: 'Looking for something...',
   },
-  'ja': {
-    title: "Kun's ブログ",
+  ja: {
+    title: 'Kun\'s ブログ',
     subtitle: 'コード | コーヒー | キャプチャ',
     description: 'シンプルな個人ブログです',
     posts: '記事',
     tags: 'タグ',
     about: '概要',
     timeline: 'タイムライン',
+    gallery: 'ギャラリー',
     toc: '目次',
     search: '何かを探している...',
   },
-  'zh': {
-    title: "Kun's Blog",
+  zh: {
+    title: 'Kun\'s Blog',
     subtitle: 'code | coffee | capture',
     description: '一个简单的个人博客',
     posts: '文章',
     tags: '标签',
     about: '关于',
     timeline: '时间线',
+    gallery: '相册',
     toc: '目录',
     search: '找些什么...',
   },

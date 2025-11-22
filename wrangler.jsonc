@@ -1,23 +1,23 @@
 {
-	"main": "dist/_worker.js/index.js",
-	"name": "astro-theme-retypeset",
+  "main": "dist/_worker.js/index.js",
+  "name": "astro-theme-retypeset",
   "compatibility_date": "2025-11-14",
   "compatibility_flags": [
     "nodejs_compat",
     "global_fetch_strictly_public"
   ],
-	"assets": {
-		"binding": "ASSETS",
-		"directory": "./dist"
-	},
-	"kv_namespaces": [
-		{
-			"binding": "BLOG_LIKES",
-			"id": "6695e7f63edb44c6ba5fdba3ae64d26d",
-			"preview_id": "42f364c517734ed88bcb4624a19393d9"
-		}
-	],
-	"observability": {
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "BLOG_LIKES",
+      "id": "6695e7f63edb44c6ba5fdba3ae64d26d",
+      "preview_id": "42f364c517734ed88bcb4624a19393d9"
+    }
+  ],
+  "observability": {
     "enabled": true
   }
 }

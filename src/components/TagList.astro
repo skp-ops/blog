@@ -1,6 +1,6 @@
 ---
-import { getTagPath } from '@/i18n/path'
 import type { TagWithCount } from '@/utils/content'
+import { getTagPath } from '@/i18n/path'
 
 interface Props {
   tags: TagWithCount[]
@@ -35,7 +35,7 @@ function getSizeClass(count: number) {
 }
 ---
 <div class="no-heti flex flex-wrap gap-x-2 gap-y-2.5">
-  {tags.map(tag => {
+  {tags.map((tag) => {
     const isActive = currentTag === tag.name
     const sizeClass = getSizeClass(tag.count)
 
@@ -54,7 +54,7 @@ function getSizeClass(count: number) {
           {tag.name}
         </span>
         {showCount && (
-          <span class="rounded-full bg-accent/10 px-2 py-0.2 text-[0.72rem] font-medium text-accent">
+          <span class="bg-accent/10 text-accent rounded-full px-2 py-0.2 text-[0.72rem] font-medium">
             {tag.count}
           </span>
         )}

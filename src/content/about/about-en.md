@@ -6,7 +6,6 @@ lang: en
 Hello, I'm a developer and photography enthusiast with a passion for technology.
 This blog serves as a space where I document and share personal insights and discoveries, primarily covering two areas: coding reflections and photographic artistry. Through words and images, I aim to share my thoughts and reflections from exploring the tech world and capturing fleeting moments of light and shadow.
 
-
 ## Tech Stack
 ### Languages
 - C/C++, Python: Proficient

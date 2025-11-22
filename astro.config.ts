@@ -1,3 +1,4 @@
+import cloudflare from '@astrojs/cloudflare'
 import mdx from '@astrojs/mdx'
 import partytown from '@astrojs/partytown'
 import sitemap from '@astrojs/sitemap'
@@ -17,9 +18,8 @@ import { rehypeHeadingAnchor } from './src/plugins/rehype-heading-anchor.mjs'
 import { rehypeImageProcessor } from './src/plugins/rehype-image-processor.mjs'
 import { remarkContainerDirectives } from './src/plugins/remark-container-directives.mjs'
 import { remarkLeafDirectives } from './src/plugins/remark-leaf-directives.mjs'
-import { remarkReadingTime } from './src/plugins/remark-reading-time.mjs'
 
-import cloudflare from '@astrojs/cloudflare';
+import { remarkReadingTime } from './src/plugins/remark-reading-time.mjs'
 
 const { url: site } = themeConfig.site
 const { imageHostURL } = themeConfig.preload ?? {}
