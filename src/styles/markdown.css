@@ -56,7 +56,11 @@
 
 /* Images */
 .heti :where(img:not(.no-heti):not(.no-heti *)) {
-  --at-apply: 'mx-auto cursor-zoom-in';
+  --at-apply: 'mx-auto cursor-zoom-in rounded-lg shadow-md';
+  transition: box-shadow 0.3s ease-out;
+}
+.heti :where(img:not(.no-heti):not(.no-heti *)):hover {
+  box-shadow: 0 0 20px 4px rgba(59, 130, 246, 0.4);
 }
 .heti :where(img:not(figure img):not(.no-heti):not(.no-heti *)) {
   --at-apply: 'my-6';
@@ -102,7 +106,7 @@ html.dark .heti pre span {
 
 /* Inline Code */
 .heti :where(code) {
-  --at-apply: 'uno-round-border bg-secondary/5 px-0.4em py-0.15em text-0.85em tracking-0 cjk:break-all';
+  --at-apply: 'uno-round-border bg-secondary/10 px-0.4em py-0.15em text-0.85em tracking-0 cjk:break-all border border-secondary/20 font-medium c-primary/90';
   counter-reset: line;
 }
 .heti code span.line {
@@ -140,7 +144,7 @@ html.dark .heti pre span {
 
 /* Tables */
 .heti :where(table) {
-  --at-apply: 'my-6 box-border block max-w-full table-fixed overflow-x-auto';
+  --at-apply: 'my-6 box-border block w-full overflow-x-auto';
   scrollbar-width: thin;
   scrollbar-color: oklch(var(--un-preset-theme-colors-secondary) / 0) transparent;
   transition: scrollbar-color 0.3s ease-out;
@@ -148,8 +152,23 @@ html.dark .heti pre span {
 .heti :where(table):hover {
   scrollbar-color: oklch(var(--un-preset-theme-colors-secondary) / 0.15) transparent;
 }
+.heti :where(thead) {
+  --at-apply: 'bg-secondary/10';
+}
+.heti :where(th) {
+  --at-apply: 'font-semibold c-primary/90';
+}
 .heti :where(th, td) {
   --at-apply: 'border-b border-b-secondary/25 px-3 pb-1.5';
+}
+.heti :where(tbody tr:nth-child(even)) {
+  --at-apply: 'bg-secondary/5';
+}
+.heti :where(tbody tr) {
+  transition: background-color 0.15s ease-out;
+}
+.heti :where(tbody tr:hover) {
+  --at-apply: 'bg-secondary/15';
 }
 .heti tr :where(td:first-child, th:first-child) {
   --at-apply: 'pl-0';
