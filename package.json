@@ -21,7 +21,7 @@
     "@astrojs/mdx": "^4.3.12",
     "@astrojs/partytown": "^2.1.4",
     "@astrojs/sitemap": "^3.6.0",
-    "@waline/client": "^3.6.0",
+    "@waline/client": "^3.8.0",
     "astro": "^5.15.9",
     "astro-compress": "^2.3.8",
     "feed": "^5.1.0",
