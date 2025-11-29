@@ -60,7 +60,7 @@
   transition: box-shadow 0.3s ease-out;
 }
 .heti :where(img:not(.no-heti):not(.no-heti *)):hover {
-  box-shadow: 0 0 20px 4px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 16px 3px rgba(100, 149, 237, 0.35);
 }
 .heti :where(img:not(figure img):not(.no-heti):not(.no-heti *)) {
   --at-apply: 'my-6';
