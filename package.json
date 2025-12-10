@@ -64,7 +64,7 @@
     "typescript": "~5.9.3",
     "unocss": "66.5.10",
     "unocss-preset-theme": "^0.14.1",
-    "wrangler": "^4.48.0"
+    "wrangler": "^4.53.0"
   },
   "pnpm": {
     "overrides": {
