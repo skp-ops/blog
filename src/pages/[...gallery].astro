@@ -69,6 +69,12 @@ const t = translations[lang as keyof typeof translations] || translations.en
                 data-location={photo.data.location}
                 data-description={photo.data.description}
                 data-date={new Date(photo.data.date).toISOString()}
+                data-camera={photo.data.camera}
+                data-lens={photo.data.lens}
+                data-iso={photo.data.iso}
+                data-aperture={photo.data.aperture}
+                data-shutter={photo.data.shutter}
+                data-focal-length={photo.data.focalLength}
               />
             </div>
           </div>

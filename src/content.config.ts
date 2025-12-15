@@ -45,6 +45,12 @@ const photos = defineCollection({
     thumbnail: z.string().optional(),
     tags: z.array(z.string()).optional().default([]),
     location: z.string().optional().default(''),
+    camera: z.string().optional().default(''),
+    lens: z.string().optional().default(''),
+    iso: z.union([z.string(), z.number()]).optional().transform(v => v === undefined ? '' : String(v)),
+    aperture: z.string().optional().default(''),
+    shutter: z.string().optional().default(''),
+    focalLength: z.string().optional().default(''),
   }),
 })
 

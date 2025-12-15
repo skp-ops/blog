@@ -2,12 +2,18 @@
   {
     "id": "sample-photo-1",
     "title": "Beautiful Sunset",
-    "description": "A stunning sunset over the ocean",
+    "description": "A stunning sunset over the ocean， A stunning sunset over the oceanA stunning sunset over the oceanA stunning sunset over the oceanA stunning sunset over the ocean",
     "date": "2024-01-15T00:00:00.000Z",
     "image": "/gallery/placeholder.svg",
     "thumbnail": "/gallery/placeholder.svg",
     "tags": ["nature", "sunset", "ocean"],
-    "location": "Pacific Coast"
+    "location": "Pacific Coast",
+    "camera": "Fujifilm X-T5",
+    "lens": "XF 23mm f/1.4",
+    "iso": 200,
+    "aperture": "f/5.6",
+    "shutter": "1/250s",
+    "focalLength": "23mm"
   },
   {
     "id": "sample-photo-2",
