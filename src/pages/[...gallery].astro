@@ -36,6 +36,11 @@ const sortedPhotos = photos.sort((a, b) =>
   new Date(b.data.date).getTime() - new Date(a.data.date).getTime(),
 )
 
+const INITIAL_PAGE_SIZE = 30
+const initialPhotos = sortedPhotos.slice(0, INITIAL_PAGE_SIZE)
+
+const toStr = (v: unknown) => (v === undefined || v === null ? '' : String(v))
+
 // (Dates are now formatted in the zoom overlay component)
 
 // Get translation text
@@ -51,11 +56,11 @@ const t = translations[lang as keyof typeof translations] || translations.en
   <div class="gallery-page">
     <h1 class="gallery-title">{t.title}</h1>
     <p class="gallery-desc">
-      {t.totalPhotos} {sortedPhotos.length} {t.photos}
+      {t.totalPhotos} <span id="gallery-total">{sortedPhotos.length}</span> {t.photos}
     </p>
 
-    <div class="gallery-grid">
-      {sortedPhotos.map(photo => (
+    <div class="gallery-grid" id="gallery-grid" data-initial-offset={initialPhotos.length}>
+      {initialPhotos.map(photo => (
         <div class="gallery-item" data-photo-id={photo.id}>
           <div class="gallery-card">
             <div class="gallery-image-wrapper">
@@ -64,23 +69,27 @@ const t = translations[lang as keyof typeof translations] || translations.en
                 alt={photo.data.title}
                 class="gallery-image"
                 loading="lazy"
+                decoding="async"
+                fetchpriority={photo.id === 'sample-photo-1' ? 'high' : 'auto'}
                 data-full-image={photo.data.image}
                 data-title={photo.data.title}
-                data-location={photo.data.location}
-                data-description={photo.data.description}
+                data-location={toStr(photo.data.location)}
+                data-description={toStr(photo.data.description)}
                 data-date={new Date(photo.data.date).toISOString()}
-                data-camera={photo.data.camera}
-                data-lens={photo.data.lens}
-                data-iso={photo.data.iso}
-                data-aperture={photo.data.aperture}
-                data-shutter={photo.data.shutter}
-                data-focal-length={photo.data.focalLength}
+                data-camera={toStr((photo.data as any).camera)}
+                data-lens={toStr((photo.data as any).lens)}
+                data-iso={toStr((photo.data as any).iso)}
+                data-aperture={toStr((photo.data as any).aperture)}
+                data-shutter={toStr((photo.data as any).shutter)}
+                data-focal-length={toStr((photo.data as any).focalLength)}
               />
             </div>
           </div>
         </div>
       ))}
     </div>
+
+    <div class="gallery-sentinel" id="gallery-sentinel" aria-hidden="true"></div>
   </div>
 </Layout>
 
@@ -188,55 +197,120 @@ const t = translations[lang as keyof typeof translations] || translations.en
     transform: scale(1.04);
   }
 
+  .gallery-sentinel {
+    height: 1px;
+  }
+
   /* Thumbnail cards now only show the image (no captions) */
 </style>
 
 <script>
-  // Handle image click for zoom
+  // Infinite scroll: append more photos as the sentinel enters view.
   document.addEventListener('astro:page-load', () => {
-    const images = document.querySelectorAll('.gallery-image')
+    const grid = document.getElementById('gallery-grid')
+    const sentinel = document.getElementById('gallery-sentinel')
+    if (!grid || !sentinel) return
 
-    images.forEach((img) => {
-      img.addEventListener('click', (e) => {
-        const target = e.target as HTMLImageElement
-        const fullImage = target.getAttribute('data-full-image')
+    const templateItem = grid.querySelector('.gallery-item')
+    if (!templateItem) return
 
-        // If full image URL exists, replace the src temporarily for zoom
-        if (fullImage && fullImage !== target.src) {
-          const originalSrc = target.src
-          target.src = fullImage
+    let offset = Number.parseInt(grid.getAttribute('data-initial-offset') || '0', 10) || 0
+    const limit = 30
+    let loading = false
+    let done = false
 
-          // Wait for ImageZoom overlay to be created and observe it
-          const setupObserver = () => {
-            const zoomOverlay = document.querySelector('.zoom-overlay') as HTMLElement
-            if (!zoomOverlay) {
-              return
-            }
+    const escapeHtml = (v: unknown) => String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
 
-            // Restore original after zoom closes
-            const observer = new MutationObserver(() => {
-              try {
-                if (!zoomOverlay || zoomOverlay.style.display === 'none') {
-                  target.src = originalSrc
-                  observer.disconnect()
-                }
-              }
-              catch {
-                observer.disconnect()
-              }
-            })
+    type ApiPhotoItem = {
+      id: string
+      image: string
+      thumbnail?: string
+      title: string
+      location?: string
+      description?: string
+      date: string
+      camera?: string
+      lens?: string
+      iso?: string
+      aperture?: string
+      shutter?: string
+      focalLength?: string
+    }
 
-            observer.observe(zoomOverlay, { attributes: true, attributeFilter: ['style'] })
-          }
+    const appendItems = (items: ApiPhotoItem[]) => {
+      const frag = document.createDocumentFragment()
+      for (const p of items) {
+        const item = templateItem.cloneNode(true) as HTMLElement
+        item.setAttribute('data-photo-id', p.id)
 
-          // Use requestAnimationFrame to wait for overlay creation
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              setupObserver()
-            })
-          })
+        const img = item.querySelector('img.gallery-image') as HTMLImageElement | null
+        if (img) {
+          img.src = String(p.thumbnail || p.image || '')
+          img.alt = String(p.title || '')
+
+          img.setAttribute('loading', 'lazy')
+          img.setAttribute('decoding', 'async')
+          img.setAttribute('fetchpriority', 'auto')
+
+          img.setAttribute('data-full-image', String(p.image || ''))
+          img.setAttribute('data-title', String(p.title || ''))
+          img.setAttribute('data-location', String(p.location || ''))
+          img.setAttribute('data-description', String(p.description || ''))
+          img.setAttribute('data-date', String(p.date || ''))
+          img.setAttribute('data-camera', String(p.camera || ''))
+          img.setAttribute('data-lens', String(p.lens || ''))
+          img.setAttribute('data-iso', String(p.iso || ''))
+          img.setAttribute('data-aperture', String(p.aperture || ''))
+          img.setAttribute('data-shutter', String(p.shutter || ''))
+          img.setAttribute('data-focal-length', String(p.focalLength || ''))
         }
-      })
-    })
+
+        frag.appendChild(item)
+      }
+      grid.appendChild(frag)
+    }
+
+    const loadMore = async () => {
+      if (loading || done) return
+      loading = true
+      try {
+        const res = await fetch(`/api/photos.json?offset=${offset}&limit=${limit}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        const items = Array.isArray(data.items) ? data.items : []
+        if (items.length === 0) {
+          done = true
+          io.disconnect()
+          return
+        }
+        appendItems(items)
+        offset += items.length
+        if (typeof data.total === 'number' && offset >= data.total) {
+          done = true
+          io.disconnect()
+        }
+      }
+      catch {
+        // If API fails, stop retrying to avoid spamming.
+        done = true
+        io.disconnect()
+      }
+      finally {
+        loading = false
+      }
+    }
+
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) {
+        void loadMore()
+      }
+    }, { rootMargin: '800px 0px' })
+
+    io.observe(sentinel)
   })
 </script>

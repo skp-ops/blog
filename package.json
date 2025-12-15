@@ -14,6 +14,7 @@
     "new-post": "tsx scripts/new-post.ts",
     "apply-lqip": "tsx scripts/apply-lqip.ts",
     "format-posts": "tsx scripts/format-posts.ts",
+    "generate-photos": "tsx scripts/generate-photos.ts",
     "update-theme": "tsx scripts/update-theme.ts"
   },
   "dependencies": {

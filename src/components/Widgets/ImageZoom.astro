@@ -7,9 +7,13 @@ const ImageZoom = {
   infoBtn: null as HTMLButtonElement | null,
   currentImg: null as HTMLImageElement | null,
   images: [] as HTMLImageElement[],
+  imagesValid: false,
+  galleryObserver: null as MutationObserver | null,
   currentIndex: 0,
   prevBtn: null as HTMLButtonElement | null,
   nextBtn: null as HTMLButtonElement | null,
+  navHideTimer: null as number | null,
+  navVisible: false,
 
   showInfoButton() {
     if (!this.infoBtn) return
@@ -63,16 +67,65 @@ const ImageZoom = {
     return btn
   },
 
-  collectImages() {
-    this.images = Array.from(document.querySelectorAll('img')).filter(img => 
-      img.complete && img.naturalWidth >= 100 && img.naturalHeight >= 100 && !img.closest('.zoom-overlay')
-    )
+  collectImages(force = false) {
+    if (!force && this.imagesValid && this.images.length > 0) {
+      return
+    }
+    this.images = Array
+      .from(document.querySelectorAll('.gallery-image'))
+      .filter((img): img is HTMLImageElement => img instanceof HTMLImageElement)
+    this.imagesValid = true
+  },
+
+  invalidateImages() {
+    this.imagesValid = false
+  },
+
+  setupGalleryObserver() {
+    if (this.galleryObserver) return
+
+    const root = document.querySelector('main') || document.body
+    this.galleryObserver = new MutationObserver(() => {
+      this.invalidateImages()
+    })
+    this.galleryObserver.observe(root, { childList: true, subtree: true })
   },
 
   updateNavButtons() {
     if (!this.prevBtn || !this.nextBtn) return
+    if (!this.navVisible) {
+      this.prevBtn.style.display = 'none'
+      this.nextBtn.style.display = 'none'
+      return
+    }
     this.prevBtn.style.display = this.currentIndex > 0 ? 'flex' : 'none'
     this.nextBtn.style.display = this.currentIndex < this.images.length - 1 ? 'flex' : 'none'
+  },
+
+  showNavTemporarily() {
+    if (!this.overlay || !this.prevBtn || !this.nextBtn) return
+    this.navVisible = true
+    this.updateNavButtons()
+    if (this.navHideTimer !== null) window.clearTimeout(this.navHideTimer)
+    this.navHideTimer = window.setTimeout(() => {
+      this.navVisible = false
+      this.updateNavButtons()
+    }, 1200)
+  },
+
+  setupNavAutoHide() {
+    if (!this.overlay) return
+    const overlayEl = this.overlay
+    const onMove = () => {
+      if (!this.zoomedImg) return
+      this.showNavTemporarily()
+    }
+    overlayEl.addEventListener('mousemove', onMove)
+    overlayEl.addEventListener('mouseenter', onMove)
+    overlayEl.addEventListener('mouseleave', () => {
+      this.navVisible = false
+      this.updateNavButtons()
+    })
   },
 
   prev() {
@@ -92,8 +145,11 @@ const ImageZoom = {
 
     this.currentImg = img
     this.showInfoButton()
+
+    this.navVisible = false
+    this.updateNavButtons()
     
-    this.zoomImg(img)
+    void this.zoomImg(img)
   },
 
   // Create overlay element
@@ -129,6 +185,8 @@ const ImageZoom = {
     this.nextBtn = this.createNavBtn('next')
     this.overlay.appendChild(this.prevBtn)
     this.overlay.appendChild(this.nextBtn)
+
+    this.setupNavAutoHide()
 
     this.infoBtn = document.createElement('button')
     this.infoBtn.setAttribute('aria-label', 'Show info')
@@ -177,7 +235,7 @@ const ImageZoom = {
   },
 
   // Zoom in the image
-  zoomImg(img: HTMLImageElement) {
+  async zoomImg(img: HTMLImageElement) {
     if (!this.overlay) {
       return
     }
@@ -187,6 +245,7 @@ const ImageZoom = {
     
     this.collectImages()
     this.currentIndex = this.images.indexOf(img)
+    this.navVisible = false
     this.updateNavButtons()
 
     this.currentImg = img
@@ -197,6 +256,13 @@ const ImageZoom = {
 
     // Create and style cloned image
     this.zoomedImg = img.cloneNode() as HTMLImageElement
+
+    // Prefer full-res image for zoomed view (avoid blurry upscales)
+    const fullSrc = img.getAttribute('data-full-image')
+    if (fullSrc) {
+      this.zoomedImg.src = fullSrc
+    }
+    this.zoomedImg.decoding = 'async'
     Object.assign(this.zoomedImg.style, {
       position: 'absolute',
       top: `${rect.top}px`,
@@ -207,6 +273,10 @@ const ImageZoom = {
       zIndex: '1',
       cursor: 'zoom-out',
       transformOrigin: 'top left',
+      willChange: 'transform',
+      maxWidth: 'none',
+      maxHeight: 'none',
+      objectFit: 'contain',
     })
 
     // Add to overlay and show
@@ -242,6 +312,13 @@ const ImageZoom = {
     // Build and attach floating info UI
     this.attachInfoCard(img)
 
+    // Try to decode the full-res image before animating to reduce flicker/jank.
+    try {
+      await this.zoomedImg.decode()
+    } catch {
+      // ignore decode errors; still animate
+    }
+
     // Start animation
     requestAnimationFrame(() => {
       if (this.overlay) {
@@ -253,7 +330,7 @@ const ImageZoom = {
         const targetTLY = targetCenterY - (rect.height * scale) / 2
         const moveX = targetTLX - rect.left
         const moveY = targetTLY - rect.top
-        
+
         this.zoomedImg.style.transform = `translate3d(${moveX}px, ${moveY}px, 0) scale(${scale})`
       }
     })
@@ -291,12 +368,16 @@ const ImageZoom = {
         this.overlay.style.display = 'none'
       }
 
-      // Remove floating info card
+      // Remove info card
       if (this.infoCard && this.infoCard.parentNode) this.infoCard.parentNode.removeChild(this.infoCard)
       this.infoCard = null
 
       this.hideInfoButton()
       this.currentImg = null
+
+      this.navVisible = false
+      if (this.navHideTimer !== null) window.clearTimeout(this.navHideTimer)
+      this.navHideTimer = null
 
       // Restore original image and focus
       if (this.originalImg) {
@@ -331,7 +412,8 @@ const ImageZoom = {
     }
 
     // event.preventDefault()
-    this.zoomImg(target)
+    this.collectImages()
+    void this.zoomImg(target)
   },
 
   // Handle resize events
@@ -346,6 +428,13 @@ const ImageZoom = {
   // Initialize the ImageZoom
   init() {
     this.createOverlay()
+
+    // Cache image list and refresh on page navigation/content updates
+    document.addEventListener('astro:page-load', () => {
+      this.invalidateImages()
+      this.collectImages(true)
+      this.setupGalleryObserver()
+    })
 
     document.addEventListener('astro:page-load', () => this.setupOverlay())
     document.addEventListener('click', event => this.handleClick(event), { passive: true })
@@ -414,25 +503,25 @@ const ImageZoom = {
     })
 
     if (isDesktop) {
-       Object.assign(this.infoCard.style, {
-         right: '16px',
-         top: '50%',
-         transform: 'translateY(-50%) translateX(20px)',
-         width: '320px',
-         maxHeight: '80vh',
-         overflowY: 'auto',
-         backgroundColor: 'oklch(var(--un-preset-theme-colors-background) / 1)',
-       })
+      Object.assign(this.infoCard.style, {
+        right: '16px',
+        top: '50%',
+        transform: 'translateY(-50%) translateX(20px)',
+        width: '320px',
+        maxHeight: '80vh',
+        overflowY: 'auto',
+        backgroundColor: 'oklch(var(--un-preset-theme-colors-background) / 1)',
+      })
     } else {
-       Object.assign(this.infoCard.style, {
-         left: '50%',
-         bottom: '16px',
-         transform: 'translateX(-50%) translateY(20px)',
-         width: 'min(90vw, 520px)',
-         maxHeight: '40vh',
-         overflowY: 'auto',
-         backgroundColor: 'oklch(var(--un-preset-theme-colors-background) / 1)',
-       })
+      Object.assign(this.infoCard.style, {
+        left: '50%',
+        bottom: '16px',
+        transform: 'translateX(-50%) translateY(20px)',
+        width: 'min(90vw, 520px)',
+        maxHeight: '40vh',
+        overflowY: 'auto',
+        backgroundColor: 'oklch(var(--un-preset-theme-colors-background) / 1)',
+      })
     }
 
     const makeIcon = (svgPath: string) => {
