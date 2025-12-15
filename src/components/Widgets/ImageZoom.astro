@@ -318,6 +318,20 @@ const ImageZoom = {
     const description = img.getAttribute('data-description') || ''
     const date = formatDate(img.getAttribute('data-date'))
 
+    const camera = img.getAttribute('data-camera') || ''
+    const iso = img.getAttribute('data-iso') || ''
+    const lens = img.getAttribute('data-lens') || ''
+    const aperture = img.getAttribute('data-aperture') || ''
+    const shutter = img.getAttribute('data-shutter') || ''
+    const focalLength = img.getAttribute('data-focal-length') || ''
+
+    const hasAnyInfo = Boolean(
+      title || location || description || date || camera || iso || lens || aperture || shutter || focalLength,
+    )
+    if (!hasAnyInfo) {
+      return
+    }
+
     this.infoCard = document.createElement('div')
     this.infoCard.setAttribute('role', 'group')
     
@@ -361,6 +375,31 @@ const ImageZoom = {
        })
     }
 
+    const makeIcon = (svgPath: string) => {
+      const icon = document.createElement('span')
+      icon.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svgPath}</svg>`
+      Object.assign(icon.style, {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '18px',
+        height: '18px',
+        flex: '0 0 18px',
+        color: 'oklch(var(--un-preset-theme-colors-secondary))',
+      })
+      return icon
+    }
+
+    const ICONS = {
+      clock: '<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>',
+      location: '<path d="M12 21s7-4.5 7-10a7 7 0 1 0-14 0c0 5.5 7 10 7 10z"></path><circle cx="12" cy="11" r="2"></circle>',
+      camera: '<path d="M20 7h-3l-2-2H9L7 7H4v12h16V7z"></path><circle cx="12" cy="13" r="3"></circle>',
+      iso: '<rect x="4" y="6" width="16" height="12" rx="2"></rect><path d="M8 10h4"></path><path d="M8 14h8"></path>',
+      lens: '<circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 4v4"></path><path d="M12 16v4"></path>',
+      aperture: '<circle cx="12" cy="12" r="9"></circle><path d="M12 3l3 6"></path><path d="M21 12l-6 3"></path><path d="M12 21l-3-6"></path><path d="M3 12l6-3"></path><path d="M6.5 6.5l5.5 2"></path><path d="M17.5 17.5l-5.5-2"></path>',
+      shutter: '<circle cx="12" cy="12" r="9"></circle><path d="M7 12h10"></path><path d="M12 7v10"></path>',
+    }
+
     const closeBtn = document.createElement('button')
     closeBtn.setAttribute('aria-label', 'Close')
     Object.assign(closeBtn.style, {
@@ -386,7 +425,20 @@ const ImageZoom = {
         closeBtn.style.color = 'oklch(var(--un-preset-theme-colors-secondary))'
     }
     closeBtn.textContent = '×'
-    closeBtn.addEventListener('click', () => this.close())
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      if (!this.infoCard) return
+      this.infoCard.style.opacity = '0'
+      if (isDesktop) {
+        this.infoCard.style.transform = 'translateY(-50%) translateX(20px)'
+      } else {
+        this.infoCard.style.transform = 'translateX(-50%) translateY(20px)'
+      }
+      setTimeout(() => {
+        if (this.infoCard && this.infoCard.parentNode) this.infoCard.parentNode.removeChild(this.infoCard)
+        this.infoCard = null
+      }, 250)
+    })
 
     const titleEl = document.createElement('div')
     titleEl.textContent = title
@@ -398,29 +450,66 @@ const ImageZoom = {
       color: 'oklch(var(--un-preset-theme-colors-primary))',
     })
 
-    const metaRow = document.createElement('div')
-    Object.assign(metaRow.style, {
-      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px',
-      fontSize: '13px',
+    const metaList = document.createElement('div')
+    Object.assign(metaList.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      marginTop: '2px',
       color: 'oklch(var(--un-preset-theme-colors-secondary))',
+      fontSize: '13px',
     })
 
-    if (location) {
-      const locEl = document.createElement('span')
-      locEl.textContent = location
-      Object.assign(locEl.style, { display: 'inline-flex', alignItems: 'center', gap: '4px' })
-      metaRow.appendChild(locEl)
-    }
-    if (date) {
-      const dateEl = document.createElement('span')
-      dateEl.textContent = date
-      Object.assign(dateEl.style, {
-        padding: '4px 10px', borderRadius: '9999px',
-        background: 'oklch(var(--un-preset-theme-colors-secondary) / 0.1)',
-        fontSize: '12px', letterSpacing: '.5px'
+    const addMetaItem = (iconKey: keyof typeof ICONS, label: string, value: string) => {
+      if (!value) return
+      const row = document.createElement('div')
+      Object.assign(row.style, {
+        display: 'grid',
+        gridTemplateColumns: '18px 1fr',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '8px 10px',
+        borderRadius: '12px',
+        background: 'oklch(var(--un-preset-theme-colors-secondary) / 0.06)',
+        border: '1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.12)',
       })
-      metaRow.appendChild(dateEl)
+
+      const icon = makeIcon(ICONS[iconKey])
+      const textWrap = document.createElement('div')
+      Object.assign(textWrap.style, { display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'baseline' })
+
+      const labelEl = document.createElement('span')
+      labelEl.textContent = label
+      Object.assign(labelEl.style, {
+        fontSize: '12px',
+        letterSpacing: '.3px',
+        opacity: '0.85',
+      })
+
+      const valueEl = document.createElement('span')
+      valueEl.textContent = value
+      Object.assign(valueEl.style, {
+        color: 'oklch(var(--un-preset-theme-colors-primary))',
+        fontWeight: '600',
+        fontSize: '13px',
+        wordBreak: 'break-word',
+      })
+
+      textWrap.appendChild(labelEl)
+      textWrap.appendChild(valueEl)
+      row.appendChild(icon)
+      row.appendChild(textWrap)
+      metaList.appendChild(row)
     }
+
+    addMetaItem('clock', lang.startsWith('zh') ? '时间' : lang.startsWith('ja') ? '日時' : 'Date', date)
+    addMetaItem('location', lang.startsWith('zh') ? '地点' : lang.startsWith('ja') ? '場所' : 'Location', location)
+    addMetaItem('camera', lang.startsWith('zh') ? '设备' : lang.startsWith('ja') ? 'カメラ' : 'Camera', camera)
+    addMetaItem('lens', lang.startsWith('zh') ? '镜头' : lang.startsWith('ja') ? 'レンズ' : 'Lens', lens)
+    addMetaItem('iso', 'ISO', iso)
+    addMetaItem('aperture', lang.startsWith('zh') ? '光圈' : lang.startsWith('ja') ? '絞り' : 'Aperture', aperture)
+    addMetaItem('shutter', lang.startsWith('zh') ? '快门' : lang.startsWith('ja') ? 'シャッター' : 'Shutter', shutter)
+    addMetaItem('lens', lang.startsWith('zh') ? '焦距' : lang.startsWith('ja') ? '焦点距離' : 'Focal', focalLength)
 
     if (description) {
       const descEl = document.createElement('div')
@@ -435,7 +524,7 @@ const ImageZoom = {
 
     this.infoCard.appendChild(closeBtn)
     this.infoCard.appendChild(titleEl)
-    if (location || date) this.infoCard.appendChild(metaRow)
+    this.infoCard.appendChild(metaList)
 
     this.overlay.appendChild(this.infoCard)
 
