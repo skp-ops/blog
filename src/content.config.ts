@@ -1,4 +1,4 @@
-import { glob } from 'astro/loaders'
+import { file, glob } from 'astro/loaders'
 import { defineCollection, z } from 'astro:content'
 import { allLocales, themeConfig } from '@/config'
 
@@ -35,8 +35,9 @@ const about = defineCollection({
 })
 
 const photos = defineCollection({
-  loader: glob({ pattern: '**/*.json', base: './src/content/photos' }),
+  loader: file('./src/content/photos/photos.json'),
   schema: z.object({
+    id: z.string(),
     title: z.string(),
     description: z.string().optional().default(''),
     date: z.coerce.date(),

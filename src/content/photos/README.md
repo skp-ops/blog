@@ -4,22 +4,26 @@ This directory contains photo metadata for the gallery page.
 
 ## Adding Photos
 
-Create a JSON file for each photo with the following structure:
+Edit the single JSON file `photos.json` and add items to the array:
 
 ```json
-{
-  "title": "Photo Title",
-  "description": "A brief description of the photo",
-  "date": "2024-01-15T00:00:00.000Z",
-  "image": "/path/to/full-resolution-image.jpg",
-  "thumbnail": "/path/to/thumbnail.jpg",
-  "tags": ["nature", "landscape", "sunset"],
-  "location": "Location Name"
-}
+[
+  {
+    "id": "sunset-beach-2024",
+    "title": "Photo Title",
+    "description": "A brief description of the photo",
+    "date": "2024-01-15T00:00:00.000Z",
+    "image": "/path/to/full-resolution-image.jpg",
+    "thumbnail": "/path/to/thumbnail.jpg",
+    "tags": ["nature", "landscape", "sunset"],
+    "location": "Location Name"
+  }
+]
 ```
 
 ## Fields
 
+- **id** (required): Unique ID for the photo (used for stable keys)
 - **title** (required): The title of the photo
 - **description** (optional): A brief description
 - **date** (required): ISO 8601 date string when the photo was taken
@@ -37,12 +41,10 @@ Images can be:
 
 ## File Naming
 
-Use descriptive names for JSON files like:
-- `sunset-beach-2024.json`
-- `mountain-peak-spring.json`
-- `city-night-lights.json`
-
-The filename doesn't affect the gallery display - only the content matters.
+Keep using descriptive `id` values, e.g.:
+- `sunset-beach-2024`
+- `mountain-peak-spring`
+- `city-night-lights`
 
 ## Display Order
 
