@@ -36,7 +36,7 @@ const sortedPhotos = photos.sort((a, b) =>
   new Date(b.data.date).getTime() - new Date(a.data.date).getTime(),
 )
 
-const PHOTOS_PER_PAGE = 12
+const PHOTOS_PER_PAGE = 24
 const initialPhotos = sortedPhotos.slice(0, PHOTOS_PER_PAGE)
 const totalPages = Math.ceil(sortedPhotos.length / PHOTOS_PER_PAGE)
 
@@ -189,6 +189,19 @@ const t = translations[lang as keyof typeof translations] || translations.en
 
   .gallery-item {
     /* No special break properties needed for grid layout */
+    min-height: 280px;
+  }
+
+  @media (min-width: 640px) {
+    .gallery-item {
+      min-height: 320px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .gallery-item {
+      min-height: 380px;
+    }
   }
 
   .gallery-card {
@@ -309,12 +322,15 @@ document.addEventListener('astro:page-load', () => {
   if (!grid || !prevBtn || !nextBtn || !currentPageEl || !totalPagesEl)
     return
 
-  const templateItem = grid.querySelector('.gallery-item')
-  if (!templateItem)
+  const templateItemInGrid = grid.querySelector('.gallery-item')
+  if (!templateItemInGrid)
     return
 
+  // Clone and preserve the template outside the grid to use for pagination
+  const templateItem = templateItemInGrid.cloneNode(true) as HTMLElement
+
   const totalPhotos = Number.parseInt(grid.getAttribute('data-total-photos') || '0', 10)
-  const photosPerPage = Number.parseInt(grid.getAttribute('data-photos-per-page') || '12', 10)
+  const photosPerPage = Number.parseInt(grid.getAttribute('data-photos-per-page') || '24', 10)
   const totalPages = Math.ceil(totalPhotos / photosPerPage)
 
   let currentPage = 1
