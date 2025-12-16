@@ -345,30 +345,30 @@ document.addEventListener('astro:page-load', () => {
 
       // Add new items
       const frag = document.createDocumentFragment()
-      for (const p of items) {
+      for (const photo of items) {
         const item = templateItem.cloneNode(true) as HTMLElement
-        item.setAttribute('data-photo-id', p.id)
+        item.setAttribute('data-photo-id', photo.id)
 
         const img = item.querySelector('img.gallery-image') as HTMLImageElement | null
         if (img) {
-          img.src = String(p.thumbnail || p.image || '')
-          img.alt = String(p.title || '')
+          img.src = String(photo.thumbnail || photo.image || '')
+          img.alt = String(photo.title || '')
 
           img.setAttribute('loading', 'lazy')
           img.setAttribute('decoding', 'async')
           img.setAttribute('fetchpriority', 'auto')
 
-          img.setAttribute('data-full-image', String(p.image || ''))
-          img.setAttribute('data-title', String(p.title || ''))
-          img.setAttribute('data-location', String(p.location || ''))
-          img.setAttribute('data-description', String(p.description || ''))
-          img.setAttribute('data-date', String(p.date || ''))
-          img.setAttribute('data-camera', String(p.camera || ''))
-          img.setAttribute('data-lens', String(p.lens || ''))
-          img.setAttribute('data-iso', String(p.iso || ''))
-          img.setAttribute('data-aperture', String(p.aperture || ''))
-          img.setAttribute('data-shutter', String(p.shutter || ''))
-          img.setAttribute('data-focal-length', String(p.focalLength || ''))
+          img.setAttribute('data-full-image', String(photo.image || ''))
+          img.setAttribute('data-title', String(photo.title || ''))
+          img.setAttribute('data-location', String(photo.location || ''))
+          img.setAttribute('data-description', String(photo.description || ''))
+          img.setAttribute('data-date', String(photo.date || ''))
+          img.setAttribute('data-camera', String(photo.camera || ''))
+          img.setAttribute('data-lens', String(photo.lens || ''))
+          img.setAttribute('data-iso', String(photo.iso || ''))
+          img.setAttribute('data-aperture', String(photo.aperture || ''))
+          img.setAttribute('data-shutter', String(photo.shutter || ''))
+          img.setAttribute('data-focal-length', String(photo.focalLength || ''))
         }
 
         frag.appendChild(item)
