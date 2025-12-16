@@ -375,6 +375,13 @@ document.addEventListener('astro:page-load', () => {
       }
       grid.appendChild(frag)
 
+      // Notify ImageZoom to re-collect images after DOM update
+      // This ensures the image array is fresh after pagination changes
+      if (typeof (window as any).ImageZoom !== 'undefined') {
+        (window as any).ImageZoom.invalidateImages()
+        (window as any).ImageZoom.collectImages(true)
+      }
+
       // Scroll to top of gallery
       const galleryPage = document.querySelector('.gallery-page')
       if (galleryPage) {
