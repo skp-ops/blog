@@ -36,8 +36,9 @@ const sortedPhotos = photos.sort((a, b) =>
   new Date(b.data.date).getTime() - new Date(a.data.date).getTime(),
 )
 
-const INITIAL_PAGE_SIZE = 30
-const initialPhotos = sortedPhotos.slice(0, INITIAL_PAGE_SIZE)
+const PHOTOS_PER_PAGE = 12
+const initialPhotos = sortedPhotos.slice(0, PHOTOS_PER_PAGE)
+const totalPages = Math.ceil(sortedPhotos.length / PHOTOS_PER_PAGE)
 
 const toStr = (v: unknown) => (v === undefined || v === null ? '' : String(v))
 
@@ -45,9 +46,33 @@ const toStr = (v: unknown) => (v === undefined || v === null ? '' : String(v))
 
 // Get translation text
 const translations = {
-  en: { title: 'Gallery', totalPhotos: 'Total', photos: 'photos' },
-  zh: { title: '画廊', totalPhotos: '共', photos: '张照片' },
-  ja: { title: 'ギャラリー', totalPhotos: '合計', photos: '枚の写真' },
+  en: {
+    title: 'Gallery',
+    totalPhotos: 'Total',
+    photos: 'photos',
+    page: 'Page',
+    of: 'of',
+    previous: 'Previous',
+    next: 'Next',
+  },
+  zh: {
+    title: '画廊',
+    totalPhotos: '共',
+    photos: '张照片',
+    page: '第',
+    of: '页，共',
+    previous: '上一页',
+    next: '下一页',
+  },
+  ja: {
+    title: 'ギャラリー',
+    totalPhotos: '合計',
+    photos: '枚の写真',
+    page: 'ページ',
+    of: '/',
+    previous: '前へ',
+    next: '次へ',
+  },
 }
 const t = translations[lang as keyof typeof translations] || translations.en
 ---
@@ -59,7 +84,7 @@ const t = translations[lang as keyof typeof translations] || translations.en
       {t.totalPhotos} <span id="gallery-total">{sortedPhotos.length}</span> {t.photos}
     </p>
 
-    <div class="gallery-grid" id="gallery-grid" data-initial-offset={initialPhotos.length}>
+    <div class="gallery-grid" id="gallery-grid" data-total-photos={sortedPhotos.length} data-photos-per-page={PHOTOS_PER_PAGE}>
       {initialPhotos.map(photo => (
         <div class="gallery-item" data-photo-id={photo.id}>
           <div class="gallery-card">
@@ -89,7 +114,25 @@ const t = translations[lang as keyof typeof translations] || translations.en
       ))}
     </div>
 
-    <div class="gallery-sentinel" id="gallery-sentinel" aria-hidden="true"></div>
+    <div class="gallery-pagination" id="gallery-pagination">
+      <button id="gallery-prev" class="gallery-nav-btn" disabled aria-label={t.previous}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span class="nav-text">{t.previous}</span>
+      </button>
+
+      <div class="gallery-page-info">
+        <span class="page-current">{t.page} <span id="gallery-current-page">1</span> {t.of} <span id="gallery-total-pages">{totalPages}</span></span>
+      </div>
+
+      <button id="gallery-next" class="gallery-nav-btn" aria-label={t.next}>
+        <span class="nav-text">{t.next}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+    </div>
   </div>
 </Layout>
 
@@ -124,40 +167,28 @@ const t = translations[lang as keyof typeof translations] || translations.en
   }
 
   .gallery-grid {
-    column-count: 1;
-    column-gap: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3rem;
   }
 
   @media (min-width: 640px) {
     .gallery-grid {
-      column-count: 2;
-      column-gap: 1.75rem;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.75rem;
     }
   }
 
   @media (min-width: 1024px) {
     .gallery-grid {
-      column-count: 3;
-      column-gap: 2rem;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
     }
   }
 
   .gallery-item {
-    break-inside: avoid;
-    page-break-inside: avoid;
-    margin-bottom: 1.5rem;
-  }
-
-  @media (min-width: 640px) {
-    .gallery-item {
-      margin-bottom: 1.75rem;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .gallery-item {
-      margin-bottom: 2rem;
-    }
+    /* No special break properties needed for grid layout */
   }
 
   .gallery-card {
@@ -197,52 +228,122 @@ const t = translations[lang as keyof typeof translations] || translations.en
     transform: scale(1.04);
   }
 
-  .gallery-sentinel {
-    height: 1px;
+  /* Pagination styles */
+  .gallery-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 3rem;
+    padding: 1.5rem 0;
+  }
+
+  .gallery-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 1rem;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.06);
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.12);
+    color: oklch(var(--un-preset-theme-colors-primary));
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .gallery-nav-btn:hover:not(:disabled) {
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.12);
+    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.2);
+    transform: translateY(-2px);
+  }
+
+  .gallery-nav-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .gallery-nav-btn svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .gallery-page-info {
+    text-align: center;
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-weight: 500;
+  }
+
+  .page-current {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .gallery-pagination {
+      gap: 0.5rem;
+    }
+
+    .gallery-nav-btn .nav-text {
+      display: none;
+    }
+
+    .gallery-nav-btn {
+      padding: 0.75rem;
+    }
   }
 
   /* Thumbnail cards now only show the image (no captions) */
 </style>
 
 <script>
-  // Infinite scroll: append more photos as the sentinel enters view.
-  document.addEventListener('astro:page-load', () => {
-    const grid = document.getElementById('gallery-grid')
-    const sentinel = document.getElementById('gallery-sentinel')
-    if (!grid || !sentinel) return
+// Pagination logic for gallery
+document.addEventListener('astro:page-load', () => {
+  const grid = document.getElementById('gallery-grid')
+  const prevBtn = document.getElementById('gallery-prev') as HTMLButtonElement | null
+  const nextBtn = document.getElementById('gallery-next') as HTMLButtonElement | null
+  const currentPageEl = document.getElementById('gallery-current-page')
+  const totalPagesEl = document.getElementById('gallery-total-pages')
 
-    const templateItem = grid.querySelector('.gallery-item')
-    if (!templateItem) return
+  if (!grid || !prevBtn || !nextBtn || !currentPageEl || !totalPagesEl)
+    return
 
-    let offset = Number.parseInt(grid.getAttribute('data-initial-offset') || '0', 10) || 0
-    const limit = 30
-    let loading = false
-    let done = false
+  const templateItem = grid.querySelector('.gallery-item')
+  if (!templateItem)
+    return
 
-    const escapeHtml = (v: unknown) => String(v ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
+  const totalPhotos = Number.parseInt(grid.getAttribute('data-total-photos') || '0', 10)
+  const photosPerPage = Number.parseInt(grid.getAttribute('data-photos-per-page') || '12', 10)
+  const totalPages = Math.ceil(totalPhotos / photosPerPage)
 
-    type ApiPhotoItem = {
-      id: string
-      image: string
-      thumbnail?: string
-      title: string
-      location?: string
-      description?: string
-      date: string
-      camera?: string
-      lens?: string
-      iso?: string
-      aperture?: string
-      shutter?: string
-      focalLength?: string
-    }
+  let currentPage = 1
+  let loading = false
 
-    const appendItems = (items: ApiPhotoItem[]) => {
+  const updatePagination = () => {
+    currentPageEl.textContent = String(currentPage)
+    totalPagesEl.textContent = String(totalPages)
+    prevBtn.disabled = currentPage === 1
+    nextBtn.disabled = currentPage === totalPages
+  }
+
+  const loadPage = async (page: number) => {
+    if (loading || page < 1 || page > totalPages)
+      return
+    loading = true
+
+    try {
+      const offset = (page - 1) * photosPerPage
+      const res = await fetch(`/api/photos.json?offset=${offset}&limit=${photosPerPage}`)
+      if (!res.ok)
+        throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      const items = Array.isArray(data.items) ? data.items : []
+
+      // Clear current items
+      grid.innerHTML = ''
+
+      // Add new items
       const frag = document.createDocumentFragment()
       for (const p of items) {
         const item = templateItem.cloneNode(true) as HTMLElement
@@ -273,44 +374,36 @@ const t = translations[lang as keyof typeof translations] || translations.en
         frag.appendChild(item)
       }
       grid.appendChild(frag)
+
+      // Scroll to top of gallery
+      const galleryPage = document.querySelector('.gallery-page')
+      if (galleryPage) {
+        galleryPage.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+
+      currentPage = page
+      updatePagination()
     }
-
-    const loadMore = async () => {
-      if (loading || done) return
-      loading = true
-      try {
-        const res = await fetch(`/api/photos.json?offset=${offset}&limit=${limit}`)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        const items = Array.isArray(data.items) ? data.items : []
-        if (items.length === 0) {
-          done = true
-          io.disconnect()
-          return
-        }
-        appendItems(items)
-        offset += items.length
-        if (typeof data.total === 'number' && offset >= data.total) {
-          done = true
-          io.disconnect()
-        }
-      }
-      catch {
-        // If API fails, stop retrying to avoid spamming.
-        done = true
-        io.disconnect()
-      }
-      finally {
-        loading = false
-      }
+    catch (err) {
+      console.error('Failed to load page:', err)
     }
+    finally {
+      loading = false
+    }
+  }
 
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some(e => e.isIntersecting)) {
-        void loadMore()
-      }
-    }, { rootMargin: '800px 0px' })
-
-    io.observe(sentinel)
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      loadPage(currentPage - 1)
+    }
   })
+
+  nextBtn.addEventListener('click', () => {
+    if (currentPage < totalPages) {
+      loadPage(currentPage + 1)
+    }
+  })
+
+  updatePagination()
+})
 </script>
