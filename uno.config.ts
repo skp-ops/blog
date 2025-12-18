@@ -11,6 +11,11 @@ import { themeConfig } from './src/config.ts'
 
 const { light, dark } = themeConfig.color
 
+// Create a function that generates color values with fallback
+function withFallback(cssVar: string, fallbackValue: string) {
+  return `var(${cssVar}, ${fallbackValue})`
+}
+
 export default defineConfig({
   presets: [
     presetWind3(),
@@ -19,7 +24,10 @@ export default defineConfig({
       theme: {
         dark: {
           colors: {
-            ...dark,
+            primary: withFallback('--un-preset-theme-colors-dark-primary', dark.primary),
+            secondary: withFallback('--un-preset-theme-colors-dark-secondary', dark.secondary),
+            background: withFallback('--un-preset-theme-colors-dark-background', dark.background),
+            highlight: withFallback('--un-preset-theme-colors-dark-highlight', dark.highlight),
             note: 'oklch(70.7% 0.165 254.624 / 0.8)', // blue-400
             tip: 'oklch(76.5% 0.177 163.223 / 0.8)', // emerald-400
             important: 'oklch(71.4% 0.203 305.504 / 0.8)', // purple-400
@@ -32,7 +40,10 @@ export default defineConfig({
   ],
   theme: {
     colors: {
-      ...light,
+      primary: withFallback('--un-preset-theme-colors-primary', light.primary),
+      secondary: withFallback('--un-preset-theme-colors-secondary', light.secondary),
+      background: withFallback('--un-preset-theme-colors-background', light.background),
+      highlight: withFallback('--un-preset-theme-colors-highlight', light.highlight),
       note: 'oklch(48.8% 0.243 264.376 / 0.8)', // blue-700
       tip: 'oklch(50.8% 0.118 165.612 / 0.8)', // emerald-700
       important: 'oklch(49.6% 0.265 301.924 / 0.8)', // purple-700

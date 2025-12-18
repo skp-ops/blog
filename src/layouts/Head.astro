@@ -154,6 +154,20 @@ const pageImage = postSlug
 })()
 </script>
 
+<!-- Theme Colors Loader -->
+<script>
+// Load saved theme colors on page load
+import { loadSavedTheme } from '@/utils/theme-manager'
+
+// Load theme colors immediately
+loadSavedTheme()
+
+// Also reload after page transitions
+document.addEventListener('astro:page-load', () => {
+  loadSavedTheme()
+})
+</script>
+
 <!-- Google Analytics -->
 <!-- Define gtag on window object for proper Partytown forwarding -->
 <!-- See https://github.com/QwikDev/partytown/issues/382 -->

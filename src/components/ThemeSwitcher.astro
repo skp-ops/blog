@@ -1,0 +1,447 @@
+---
+/**
+ * Theme Switcher Component
+ * Allows users to switch between preset themes or input custom OKLCH colors
+ */
+---
+
+<div id="theme-switcher-modal" class="theme-switcher-modal hidden">
+  <div class="theme-switcher-backdrop"></div>
+  <div class="theme-switcher-panel">
+    <div class="theme-switcher-header">
+      <h3 class="theme-switcher-title">Choose Theme</h3>
+      <button 
+        id="theme-switcher-close"
+        class="theme-switcher-close"
+        aria-label="Close theme switcher"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="theme-switcher-content">
+      <!-- Preset Themes -->
+      <section class="theme-section">
+        <h4 class="theme-section-title">Preset Themes</h4>
+        <div id="theme-presets" class="theme-presets-grid"></div>
+      </section>
+
+      <!-- Custom Theme -->
+      <section class="theme-section">
+        <h4 class="theme-section-title">Custom Theme</h4>
+        <div class="custom-theme-inputs">
+          <div class="custom-theme-input-group">
+            <label for="light-oklch-input" class="custom-theme-label">
+              Light Mode Primary (OKLCH)
+            </label>
+            <input
+              id="light-oklch-input"
+              type="text"
+              class="custom-theme-input"
+              placeholder="oklch(0.20 0.01 45)"
+            />
+          </div>
+          <div class="custom-theme-input-group">
+            <label for="dark-oklch-input" class="custom-theme-label">
+              Dark Mode Primary (OKLCH)
+            </label>
+            <input
+              id="dark-oklch-input"
+              type="text"
+              class="custom-theme-input"
+              placeholder="oklch(0.92 0.015 45)"
+            />
+          </div>
+          <button id="apply-custom-theme" class="apply-custom-theme-btn">
+            Apply Custom Theme
+          </button>
+          <div id="custom-theme-error" class="custom-theme-error hidden"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Theme Switcher Button (shown in navbar area) -->
+<button
+  id="theme-switcher-button"
+  class="aspect-square w-4 c-secondary active:scale-90 hover:c-primary"
+  aria-label="Change theme colors"
+>
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+    <circle cx="8" cy="8" r="3" fill="currentColor"/>
+  </svg>
+</button>
+
+<style>
+  .theme-switcher-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .theme-switcher-modal.hidden {
+    display: none;
+  }
+
+  .theme-switcher-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .theme-switcher-panel {
+    position: relative;
+    background: var(--un-preset-theme-colors-background, oklch(0.975 0.003 45));
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    z-index: 1;
+  }
+
+  html.dark .theme-switcher-panel {
+    background: var(--un-preset-theme-colors-background, oklch(0.18 0.015 45));
+  }
+
+  .theme-switcher-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem;
+    border-bottom: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+  }
+
+  .theme-switcher-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+  }
+
+  html.dark .theme-switcher-title {
+    color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .theme-switcher-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    color: var(--un-preset-theme-colors-secondary, oklch(0.55 0.015 45));
+    transition: color 0.2s;
+  }
+
+  .theme-switcher-close:hover {
+    color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+  }
+
+  html.dark .theme-switcher-close:hover {
+    color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .theme-switcher-content {
+    padding: 1.5rem;
+  }
+
+  .theme-section {
+    margin-bottom: 2rem;
+  }
+
+  .theme-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .theme-section-title {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+  }
+
+  html.dark .theme-section-title {
+    color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .theme-presets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+  }
+
+  .theme-preset-card {
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.2s;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.05);
+  }
+
+  .theme-preset-card:hover {
+    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.3);
+    transform: translateY(-2px);
+  }
+
+  .theme-preset-card.active {
+    border-color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+  }
+
+  html.dark .theme-preset-card.active {
+    border-color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .theme-preset-preview {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .theme-preset-color {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+  }
+
+  .theme-preset-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+    text-transform: capitalize;
+  }
+
+  html.dark .theme-preset-name {
+    color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .custom-theme-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .custom-theme-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .custom-theme-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+  }
+
+  html.dark .custom-theme-label {
+    color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .custom-theme-input {
+    padding: 0.75rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.2);
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.875rem;
+    background: var(--un-preset-theme-colors-background, oklch(0.975 0.003 45));
+    color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+  }
+
+  html.dark .custom-theme-input {
+    background: oklch(0.22 0.015 45);
+    color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .custom-theme-input:focus {
+    outline: none;
+    border-color: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+  }
+
+  html.dark .custom-theme-input:focus {
+    border-color: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+  }
+
+  .apply-custom-theme-btn {
+    padding: 0.75rem 1.5rem;
+    background: var(--un-preset-theme-colors-primary, oklch(0.20 0.01 45));
+    color: var(--un-preset-theme-colors-background, oklch(0.975 0.003 45));
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  html.dark .apply-custom-theme-btn {
+    background: var(--un-preset-theme-colors-primary, oklch(0.92 0.015 45));
+    color: var(--un-preset-theme-colors-background, oklch(0.18 0.015 45));
+  }
+
+  .apply-custom-theme-btn:hover {
+    opacity: 0.9;
+  }
+
+  .apply-custom-theme-btn:active {
+    transform: scale(0.98);
+  }
+
+  .custom-theme-error {
+    padding: 0.75rem;
+    background: oklch(0.95 0.05 0);
+    color: oklch(0.40 0.15 20);
+    border-radius: 6px;
+    font-size: 0.875rem;
+  }
+
+  html.dark .custom-theme-error {
+    background: oklch(0.25 0.05 0);
+    color: oklch(0.75 0.15 20);
+  }
+
+  .custom-theme-error.hidden {
+    display: none;
+  }
+</style>
+
+<script>
+import { 
+  getThemePresets, 
+  applyThemePreset, 
+  applyCustomThemeFromInput,
+  getSavedThemePreset,
+  getSavedCustomTheme,
+} from '@/utils/theme-manager'
+
+// Open/Close modal
+const modal = document.getElementById('theme-switcher-modal')
+const openButton = document.getElementById('theme-switcher-button')
+const closeButton = document.getElementById('theme-switcher-close')
+const backdrop = modal?.querySelector('.theme-switcher-backdrop')
+
+function openModal() {
+  modal?.classList.remove('hidden')
+  document.body.style.overflow = 'hidden'
+}
+
+function closeModal() {
+  modal?.classList.add('hidden')
+  document.body.style.overflow = ''
+}
+
+openButton?.addEventListener('click', openModal)
+closeButton?.addEventListener('click', closeModal)
+backdrop?.addEventListener('click', closeModal)
+
+// Render preset themes
+function renderPresets() {
+  const container = document.getElementById('theme-presets')
+  if (!container) return
+
+  const presets = getThemePresets()
+  const savedPreset = getSavedThemePreset()
+  const customTheme = getSavedCustomTheme()
+  const isDark = document.documentElement.classList.contains('dark')
+
+  container.innerHTML = presets.map(preset => {
+    const colors = isDark ? preset.dark : preset.light
+    const isActive = savedPreset === preset.name && !customTheme
+    
+    return `
+      <div class="theme-preset-card ${isActive ? 'active' : ''}" data-preset="${preset.name}">
+        <div class="theme-preset-preview">
+          <div class="theme-preset-color" style="background: ${colors.primary}"></div>
+          <div class="theme-preset-color" style="background: ${colors.secondary}"></div>
+          <div class="theme-preset-color" style="background: ${colors.highlight}"></div>
+        </div>
+        <div class="theme-preset-name">${preset.name}</div>
+      </div>
+    `
+  }).join('')
+
+  // Add click handlers
+  container.querySelectorAll('.theme-preset-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const presetName = card.getAttribute('data-preset')
+      if (presetName && applyThemePreset(presetName)) {
+        renderPresets() // Re-render to update active state
+      }
+    })
+  })
+}
+
+// Handle custom theme input
+const lightInput = document.getElementById('light-oklch-input') as HTMLInputElement
+const darkInput = document.getElementById('dark-oklch-input') as HTMLInputElement
+const applyButton = document.getElementById('apply-custom-theme')
+const errorDiv = document.getElementById('custom-theme-error')
+
+applyButton?.addEventListener('click', () => {
+  const lightValue = lightInput?.value.trim()
+  const darkValue = darkInput?.value.trim()
+
+  if (!lightValue || !darkValue) {
+    showError('Please enter both light and dark mode OKLCH values')
+    return
+  }
+
+  if (applyCustomThemeFromInput(lightValue, darkValue)) {
+    showError('')
+    renderPresets() // Update to clear active states
+    // Show success briefly
+    if (errorDiv) {
+      errorDiv.textContent = 'Custom theme applied successfully!'
+      errorDiv.style.background = 'oklch(0.90 0.08 150)'
+      errorDiv.style.color = 'oklch(0.30 0.12 150)'
+      errorDiv.classList.remove('hidden')
+      setTimeout(() => {
+        errorDiv.classList.add('hidden')
+      }, 3000)
+    }
+  } else {
+    showError('Invalid OKLCH format. Example: oklch(0.5 0.1 180)')
+  }
+})
+
+function showError(message: string) {
+  if (!errorDiv) return
+  
+  if (message) {
+    errorDiv.textContent = message
+    errorDiv.style.background = ''
+    errorDiv.style.color = ''
+    errorDiv.classList.remove('hidden')
+  } else {
+    errorDiv.classList.add('hidden')
+  }
+}
+
+// Initialize on load
+renderPresets()
+
+// Re-render when theme mode changes
+document.addEventListener('theme-changed', () => {
+  renderPresets()
+})
+</script>

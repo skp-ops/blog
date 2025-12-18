@@ -1,6 +1,7 @@
 ---
 import LanguageSwitcherIcon from '@/assets/icons/language-switcher.svg'
 import ThemeToggleIcon from '@/assets/icons/theme-toggle.svg'
+import ThemeSwitcher from '@/components/ThemeSwitcher.astro'
 import { moreLocales, themeConfig } from '@/config'
 import { getNextGlobalLangPath, getNextSupportedLangPath } from '@/i18n/path'
 
@@ -45,6 +46,9 @@ const nextUrl = supportedLangs.length > 0
     </a>
   )}
 
+  <!-- Theme Color Switcher -->
+  <ThemeSwitcher />
+
   <!-- Theme Toggle -->
   <button
     id="theme-toggle-button"
@@ -70,10 +74,28 @@ const nextUrl = supportedLangs.length > 0
 function applyTheme(isDark) {
   document.documentElement.classList.toggle('dark', isDark)
 
+  // Get saved theme colors from dataset
+  const root = document.documentElement
+  const lightColorsStr = root.dataset.themeLight
+  const darkColorsStr = root.dataset.themeDark
+  
+  let themeBackground = isDark ? darkMode : lightMode
+  
+  // If we have saved theme colors, use those
+  if (lightColorsStr && darkColorsStr) {
+    try {
+      const lightColors = JSON.parse(lightColorsStr)
+      const darkColors = JSON.parse(darkColorsStr)
+      themeBackground = isDark ? darkColors.background : lightColors.background
+    } catch (e) {
+      // Ignore parsing errors, use default
+    }
+  }
+
   // Update meta theme-color tag
   const metaThemeColor = document.head.querySelector('meta[name="theme-color"]')
-  if (metaThemeColor && lightMode && darkMode) {
-    metaThemeColor.setAttribute('content', isDark ? darkMode : lightMode)
+  if (metaThemeColor) {
+    metaThemeColor.setAttribute('content', themeBackground)
   }
 
   localStorage.setItem('theme', isDark ? 'dark' : 'light')
