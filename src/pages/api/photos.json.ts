@@ -20,7 +20,7 @@ export const GET: APIRoute = async ({ request }) => {
     .sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime())
 
   const total = sorted.length
-  const items = sorted.slice(offset, offset + limit).map(photo => ({
+  const items = sorted.slice(offset, offset + limit).map((photo) => ({
     id: photo.id,
     image: photo.data.image,
     thumbnail: photo.data.thumbnail || '',
