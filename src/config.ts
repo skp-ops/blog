@@ -30,9 +30,9 @@ export const themeConfig: ThemeConfig = {
     mode: 'light', // light, dark, auto
     light: {
       primary: 'oklch(0.20 0.01 45)', // Darker for better text readability (nearly black)
-      secondary: 'oklch(0.50 0.02 45)', // Slightly desaturated gray
-      background: 'oklch(0.96 0.005 45)', // Comfortable light gray background
-      highlight: 'oklch(0.88 0.08 45 / 0.35)', // Softer highlight
+      secondary: 'oklch(0.55 0.015 45)', // Light gray for secondary text
+      background: 'oklch(0.975 0.003 45)', // Very light gray background
+      highlight: 'oklch(0.90 0.06 45 / 0.30)', // Softer highlight
     },
     dark: {
       primary: 'oklch(0.92 0.015 45)', // Brighter text for dark mode
