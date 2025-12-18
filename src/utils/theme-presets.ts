@@ -92,4 +92,79 @@ export const themePresets: ThemePreset[] = [
       highlight: 'oklch(0.80 0.15 300 / 0.25)',
     },
   },
+  {
+    name: 'rose',
+    light: {
+      primary: 'oklch(0.30 0.12 350)',
+      secondary: 'oklch(0.55 0.06 350)',
+      background: 'oklch(0.97 0.01 350)',
+      highlight: 'oklch(0.85 0.15 350 / 0.30)',
+    },
+    dark: {
+      primary: 'oklch(0.88 0.15 350)',
+      secondary: 'oklch(0.68 0.08 350)',
+      background: 'oklch(0.18 0.03 350)',
+      highlight: 'oklch(0.80 0.18 350 / 0.25)',
+    },
+  },
+  {
+    name: 'amber',
+    light: {
+      primary: 'oklch(0.30 0.10 60)',
+      secondary: 'oklch(0.55 0.06 60)',
+      background: 'oklch(0.97 0.01 60)',
+      highlight: 'oklch(0.85 0.12 60 / 0.30)',
+    },
+    dark: {
+      primary: 'oklch(0.88 0.12 60)',
+      secondary: 'oklch(0.68 0.08 60)',
+      background: 'oklch(0.18 0.03 60)',
+      highlight: 'oklch(0.80 0.15 60 / 0.25)',
+    },
+  },
+  {
+    name: 'emerald',
+    light: {
+      primary: 'oklch(0.25 0.08 165)',
+      secondary: 'oklch(0.50 0.05 165)',
+      background: 'oklch(0.97 0.01 165)',
+      highlight: 'oklch(0.85 0.12 165 / 0.30)',
+    },
+    dark: {
+      primary: 'oklch(0.88 0.10 165)',
+      secondary: 'oklch(0.65 0.06 165)',
+      background: 'oklch(0.18 0.03 165)',
+      highlight: 'oklch(0.80 0.14 165 / 0.25)',
+    },
+  },
+  {
+    name: 'sky',
+    light: {
+      primary: 'oklch(0.28 0.08 210)',
+      secondary: 'oklch(0.55 0.05 210)',
+      background: 'oklch(0.97 0.01 210)',
+      highlight: 'oklch(0.85 0.12 210 / 0.30)',
+    },
+    dark: {
+      primary: 'oklch(0.88 0.10 210)',
+      secondary: 'oklch(0.68 0.06 210)',
+      background: 'oklch(0.18 0.03 210)',
+      highlight: 'oklch(0.80 0.14 210 / 0.25)',
+    },
+  },
+  {
+    name: 'indigo',
+    light: {
+      primary: 'oklch(0.30 0.10 270)',
+      secondary: 'oklch(0.55 0.06 270)',
+      background: 'oklch(0.97 0.01 270)',
+      highlight: 'oklch(0.85 0.12 270 / 0.30)',
+    },
+    dark: {
+      primary: 'oklch(0.88 0.12 270)',
+      secondary: 'oklch(0.68 0.08 270)',
+      background: 'oklch(0.18 0.03 270)',
+      highlight: 'oklch(0.80 0.15 270 / 0.25)',
+    },
+  },
 ]

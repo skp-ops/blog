@@ -125,6 +125,12 @@ function handleThemeToggleClick(e) {
     return
   }
 
+  // Check if startViewTransition is available
+  if (!document.startViewTransition) {
+    toggleTheme()
+    return
+  }
+
   // Add temporary markers before view transition
   document.documentElement.style.setProperty('view-transition-name', 'animation-theme-toggle')
   document.documentElement.setAttribute('data-theme-changing', '')
@@ -139,14 +145,30 @@ function handleThemeToggleClick(e) {
   })
 }
 
-// Bind click event to the button
-document.addEventListener('click', handleThemeToggleClick, { passive: true })
+// Initialize theme toggle
+function initThemeToggle() {
+  // Only initialize once globally
+  if (window._themeToggleInitialized) {
+    return
+  }
+  window._themeToggleInitialized = true
 
-// Listen to system theme changes in real time
-window.matchMedia('(prefers-color-scheme: dark)')
-  .addEventListener('change', (event) => {
-    const isDark = event.matches
-    // Apply system theme preference
-    applyTheme(isDark)
-  })
+  // Add click event listener
+  document.addEventListener('click', handleThemeToggleClick, { passive: true })
+
+  // Listen to system theme changes in real time
+  window.matchMedia('(prefers-color-scheme: dark)')
+    .addEventListener('change', (event) => {
+      const isDark = event.matches
+      applyTheme(isDark)
+    })
+}
+
+// Initialize on load
+initThemeToggle()
+
+// Re-initialize after page navigation
+document.addEventListener('astro:page-load', () => {
+  initThemeToggle()
+})
 </script>
