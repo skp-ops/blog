@@ -283,8 +283,8 @@ const t = translations[lang as keyof typeof translations] || translations.en
     height: 2.25rem;
     padding: 0 0.5rem;
     border-radius: 0.75rem;
-    background: transparent;
-    border: 1px solid transparent;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.06);
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.12);
     color: oklch(var(--un-preset-theme-colors-secondary));
     cursor: pointer;
     transition: all 0.2s ease;
@@ -293,13 +293,14 @@ const t = translations[lang as keyof typeof translations] || translations.en
   }
 
   .gallery-page-btn:hover:not(:disabled):not(.active) {
-    background: oklch(var(--un-preset-theme-colors-secondary) / 0.08);
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.12);
+    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.2);
     color: oklch(var(--un-preset-theme-colors-primary));
   }
 
   .gallery-page-btn.active {
-    background: oklch(var(--un-preset-theme-colors-secondary) / 0.12);
-    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.2);
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.25);
     color: oklch(var(--un-preset-theme-colors-primary));
     font-weight: 600;
   }
