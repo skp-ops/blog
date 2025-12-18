@@ -88,8 +88,9 @@ function applyTheme(isDark) {
       const darkColors = JSON.parse(darkColorsStr)
       themeBackground = isDark ? darkColors.background : lightColors.background
     }
-    catch {
-      // Ignore parsing errors, use default
+    catch (error) {
+      // Ignore parsing errors and use default theme colors
+      console.error('Failed to parse saved theme colors:', error)
     }
   }
 

@@ -78,8 +78,8 @@ export function saveThemePreset(presetName: string): void {
     // Clear custom theme when using preset
     localStorage.removeItem(CUSTOM_THEME_KEY)
   }
-  catch (e) {
-    console.error('Failed to save theme preset:', e)
+  catch (error) {
+    console.error('Failed to save theme preset:', error)
   }
 }
 
@@ -96,8 +96,8 @@ export function saveCustomTheme(lightColors: ThemeColors, darkColors: ThemeColor
     // Clear preset when using custom theme
     localStorage.removeItem(THEME_PRESET_KEY)
   }
-  catch (e) {
-    console.error('Failed to save custom theme:', e)
+  catch (error) {
+    console.error('Failed to save custom theme:', error)
   }
 }
 
@@ -108,8 +108,8 @@ export function getSavedThemePreset(): string | null {
   try {
     return localStorage.getItem(THEME_PRESET_KEY)
   }
-  catch (e) {
-    console.error('Failed to get saved theme preset:', e)
+  catch (error) {
+    console.error('Failed to get saved theme preset:', error)
     return null
   }
 }
@@ -124,8 +124,8 @@ export function getSavedCustomTheme(): { light: ThemeColors, dark: ThemeColors }
       return null
     return JSON.parse(saved)
   }
-  catch (e) {
-    console.error('Failed to get saved custom theme:', e)
+  catch (error) {
+    console.error('Failed to get saved custom theme:', error)
     return null
   }
 }
