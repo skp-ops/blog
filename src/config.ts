@@ -29,16 +29,16 @@ export const themeConfig: ThemeConfig = {
     // default theme mode
     mode: 'light', // light, dark, auto
     light: {
-      primary: 'oklch(0.35 0.04 45)',
-      secondary: 'oklch(0.50 0.03 45)',
-      background: 'oklch(0.985 0.005 45)',
-      highlight: 'oklch(0.92 0.10 45 / 0.4)',
+      primary: 'oklch(0.20 0.01 45)', // Darker for better text readability (nearly black)
+      secondary: 'oklch(0.55 0.015 45)', // Light gray for secondary text
+      background: 'oklch(0.975 0.003 45)', // Very light gray background
+      highlight: 'oklch(0.90 0.06 45 / 0.30)', // Softer highlight
     },
     dark: {
-      primary: 'oklch(0.88 0.02 45)',
-      secondary: 'oklch(0.70 0.02 45)',
-      background: 'oklch(0.22 0.015 45)',
-      highlight: 'oklch(0.90 0.10 45 / 0.2)',
+      primary: 'oklch(0.92 0.015 45)', // Brighter text for dark mode
+      secondary: 'oklch(0.65 0.02 45)', // Better contrast secondary text
+      background: 'oklch(0.18 0.015 45)', // Darker, more comfortable background
+      highlight: 'oklch(0.85 0.08 45 / 0.25)', // Adjusted highlight
     },
   },
   // COLOR SETTINGS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> END

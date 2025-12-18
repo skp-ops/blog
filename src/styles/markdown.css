@@ -17,12 +17,16 @@
 /* Headings */
 .heti :where(h1, h2, h3, h4, h5, h6) {
   --at-apply: 'mb-4 mt-1.5em scroll-mt-20 font-semibold';
+  color: oklch(0% 0 0); /* Pure black in light mode */
+}
+html.dark .heti :where(h1, h2, h3, h4, h5, h6) {
+  color: oklch(100% 0 0); /* Pure white in dark mode */
 }
 .heti :where(h1) {
-  --at-apply: 'text-7 c-primary';
+  --at-apply: 'text-7';
 }
 .heti :where(h2) {
-  --at-apply: 'text-6 c-primary';
+  --at-apply: 'text-6';
 }
 .heti :where(h3) {
   --at-apply: 'text-5';
@@ -45,7 +49,7 @@
 
 /* Paragraphs */
 .heti :where(p:not(.no-heti):not(.no-heti *)) {
-  --at-apply: 'mb-4 text-pretty cjk:text-justify';
+  --at-apply: 'mb-4 text-pretty cjk:text-justify c-primary';
 }
 
 /* Links */
@@ -106,8 +110,12 @@ html.dark .heti pre span {
 
 /* Inline Code */
 .heti :where(code) {
-  --at-apply: 'uno-round-border bg-secondary/10 px-0.4em py-0.15em text-0.85em tracking-0 cjk:break-all border border-secondary/20 font-medium c-primary/90';
+  --at-apply: 'uno-round-border bg-secondary/10 px-0.4em py-0.15em text-0.85em tracking-0 cjk:break-all border border-secondary/20 font-medium';
+  color: oklch(0.35 0.05 45); /* Distinct from body text in light mode */
   counter-reset: line;
+}
+html.dark .heti :where(code) {
+  color: oklch(0.80 0.03 45); /* Distinct from body text in dark mode */
 }
 .heti code span.line {
   --at-apply: 'relative pl-8';
@@ -191,7 +199,7 @@ html.dark .heti pre span {
 
 /* Lists */
 .heti :where(ul, ol) {
-  --at-apply: 'my-6 pl-2em';
+  --at-apply: 'my-6 pl-2em c-primary';
 }
 .heti :where(ul, ol) :where(ul, ol) {
   --at-apply: 'mb-0.25em mt-0';

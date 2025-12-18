@@ -83,6 +83,9 @@ const t = translations[lang as keyof typeof translations] || translations.en
     <p class="gallery-desc">
       {t.totalPhotos} <span id="gallery-total">{sortedPhotos.length}</span> {t.photos}
     </p>
+    <p class="gallery-current-page-info">
+      {t.page} <span id="gallery-current-page-top">1</span>
+    </p>
 
     <div class="gallery-grid" id="gallery-grid" data-total-photos={sortedPhotos.length} data-photos-per-page={PHOTOS_PER_PAGE}>
       {initialPhotos.map(photo => (
@@ -157,11 +160,22 @@ const t = translations[lang as keyof typeof translations] || translations.en
   .gallery-desc {
     font-size: 0.875rem;
     color: oklch(var(--un-preset-theme-colors-secondary));
+    margin-bottom: 0.5rem;
+  }
+
+  .gallery-current-page-info {
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
     margin-bottom: 2.5rem;
   }
 
+  .gallery-current-page-info span {
+    font-weight: 600;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
   @media (min-width: 1024px) {
-    .gallery-desc {
+    .gallery-current-page-info {
       margin-bottom: 3rem;
     }
   }
@@ -450,6 +464,12 @@ document.addEventListener('astro:page-load', () => {
     prevBtn!.disabled = currentPage === 1
     nextBtn!.disabled = currentPage === totalPages
     renderPageNumbers()
+    
+    // Update page info text at the top
+    const currentPageTopEl = document.getElementById('gallery-current-page-top')
+    if (currentPageTopEl) {
+      currentPageTopEl.textContent = String(currentPage)
+    }
   }
 
   async function loadPage(page: number) {
