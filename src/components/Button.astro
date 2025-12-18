@@ -78,16 +78,17 @@ function applyTheme(isDark) {
   const root = document.documentElement
   const lightColorsStr = root.dataset.themeLight
   const darkColorsStr = root.dataset.themeDark
-  
+
   let themeBackground = isDark ? darkMode : lightMode
-  
+
   // If we have saved theme colors, use those
   if (lightColorsStr && darkColorsStr) {
     try {
       const lightColors = JSON.parse(lightColorsStr)
       const darkColors = JSON.parse(darkColorsStr)
       themeBackground = isDark ? darkColors.background : lightColors.background
-    } catch (e) {
+    }
+    catch {
       // Ignore parsing errors, use default
     }
   }

@@ -464,7 +464,7 @@ document.addEventListener('astro:page-load', () => {
     prevBtn!.disabled = currentPage === 1
     nextBtn!.disabled = currentPage === totalPages
     renderPageNumbers()
-    
+
     // Update page info text at the top
     const currentPageTopEl = document.getElementById('gallery-current-page-top')
     if (currentPageTopEl) {

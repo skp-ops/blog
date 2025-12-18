@@ -10,13 +10,13 @@
   <div class="theme-switcher-panel">
     <div class="theme-switcher-header">
       <h3 class="theme-switcher-title">Choose Theme</h3>
-      <button 
+      <button
         id="theme-switcher-close"
         class="theme-switcher-close"
         aria-label="Close theme switcher"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
         </svg>
       </button>
     </div>
@@ -78,8 +78,8 @@
     xmlns="http://www.w3.org/2000/svg"
     aria-hidden="true"
   >
-    <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
-    <circle cx="8" cy="8" r="3" fill="currentColor"/>
+    <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none" />
+    <circle cx="8" cy="8" r="3" fill="currentColor" />
   </svg>
 </button>
 
@@ -326,12 +326,12 @@
 </style>
 
 <script>
-import { 
-  getThemePresets, 
-  applyThemePreset, 
+import {
   applyCustomThemeFromInput,
-  getSavedThemePreset,
+  applyThemePreset,
   getSavedCustomTheme,
+  getSavedThemePreset,
+  getThemePresets,
 } from '@/utils/theme-manager'
 
 // Open/Close modal
@@ -357,17 +357,18 @@ backdrop?.addEventListener('click', closeModal)
 // Render preset themes
 function renderPresets() {
   const container = document.getElementById('theme-presets')
-  if (!container) return
+  if (!container)
+    return
 
   const presets = getThemePresets()
   const savedPreset = getSavedThemePreset()
   const customTheme = getSavedCustomTheme()
   const isDark = document.documentElement.classList.contains('dark')
 
-  container.innerHTML = presets.map(preset => {
+  container.innerHTML = presets.map((preset) => {
     const colors = isDark ? preset.dark : preset.light
     const isActive = savedPreset === preset.name && !customTheme
-    
+
     return `
       <div class="theme-preset-card ${isActive ? 'active' : ''}" data-preset="${preset.name}">
         <div class="theme-preset-preview">
@@ -381,7 +382,7 @@ function renderPresets() {
   }).join('')
 
   // Add click handlers
-  container.querySelectorAll('.theme-preset-card').forEach(card => {
+  container.querySelectorAll('.theme-preset-card').forEach((card) => {
     card.addEventListener('click', () => {
       const presetName = card.getAttribute('data-preset')
       if (presetName && applyThemePreset(presetName)) {
@@ -419,20 +420,23 @@ applyButton?.addEventListener('click', () => {
         errorDiv.classList.add('hidden')
       }, 3000)
     }
-  } else {
+  }
+  else {
     showError('Invalid OKLCH format. Example: oklch(0.5 0.1 180)')
   }
 })
 
 function showError(message: string) {
-  if (!errorDiv) return
-  
+  if (!errorDiv)
+    return
+
   if (message) {
     errorDiv.textContent = message
     errorDiv.style.background = ''
     errorDiv.style.color = ''
     errorDiv.classList.remove('hidden')
-  } else {
+  }
+  else {
     errorDiv.classList.add('hidden')
   }
 }
