@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
-type Photo = {
+interface Photo {
   id: string
   title: string
   description?: string
@@ -78,8 +78,8 @@ async function main() {
   }
 
   const outPath = resolve('src/content/photos/photos.json')
-  await writeFile(outPath, JSON.stringify(photos, null, 2) + '\n', 'utf8')
-  // eslint-disable-next-line no-console
+  await writeFile(outPath, `${JSON.stringify(photos, null, 2)}\n`, 'utf8')
+
   console.log(`Wrote ${photos.length} photos to ${outPath}`)
 }
 
