@@ -299,10 +299,12 @@ const t = translations[lang as keyof typeof translations] || translations.en
   }
 
   .gallery-page-btn.active {
-    background: oklch(var(--un-preset-theme-colors-secondary) / 0.15);
-    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.25);
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.18);
+    border-color: oklch(var(--un-preset-theme-colors-secondary) / 0.35);
     color: oklch(var(--un-preset-theme-colors-primary));
-    font-weight: 600;
+    font-weight: 700;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px oklch(var(--un-preset-theme-colors-secondary) / 0.15);
   }
 
   .gallery-page-ellipsis {
