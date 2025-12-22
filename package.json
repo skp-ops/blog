@@ -23,7 +23,7 @@
     "@astrojs/partytown": "^2.1.4",
     "@astrojs/sitemap": "^3.6.0",
     "@waline/client": "^3.8.0",
-    "astro": "^5.16.5",
+    "astro": "^5.16.6",
     "astro-compress": "^2.3.8",
     "feed": "^5.1.0",
     "katex": "^0.16.27",
