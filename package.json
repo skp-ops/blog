@@ -41,7 +41,7 @@
     "sanitize-html": "^2.17.0",
     "sharp": "^0.34.5",
     "twikoo": "^1.6.44",
-    "unist-util-visit": "^5.0.0"
+    "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.4.1",
