@@ -24,7 +24,7 @@
     "@astrojs/sitemap": "^3.7.2",
     "@waline/client": "^3.8.0",
     "astro": "^5.17.2",
-    "astro-compress": "^2.3.9",
+    "astro-compress": "^2.4.1",
     "feed": "^5.2.1",
     "katex": "^0.16.45",
     "lite-youtube-embed": "^0.3.4",
