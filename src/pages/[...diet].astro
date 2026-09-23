@@ -1,0 +1,33 @@
+---
+import DietTracker from '@/components/DietTracker.astro'
+import { defaultLocale, moreLocales } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+
+export async function getStaticPaths() {
+  type PathItem = {
+    params: { diet: string }
+    props: { lang: string }
+  }
+
+  const paths: PathItem[] = []
+
+  paths.push({
+    params: { diet: 'diet/' },
+    props: { lang: defaultLocale },
+  })
+
+  moreLocales.forEach((lang: string) => {
+    paths.push({
+      params: { diet: `${lang}/diet/` },
+      props: { lang },
+    })
+  })
+
+  return paths
+}
+---
+
+<Layout>
+  <div class="uno-decorative-line" />
+  <DietTracker />
+</Layout>

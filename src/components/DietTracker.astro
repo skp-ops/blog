@@ -1,0 +1,790 @@
+<section class="space-y-6">
+  <header class="space-y-3">
+    <h1 class="text-7.2 font-bold c-primary cjk:tracking-0.02em">
+      每日饮食记录
+    </h1>
+    <p class="text-3.8 leading-1.8 c-secondary">
+      记录每日饮食条目，自动汇总蛋白质、碳水、脂肪与热量。
+    </p>
+  </header>
+
+  <div class="uno-round-border bg-background/70 p-4 lg:p-5">
+    <div class="mb-4 flex flex-wrap items-center gap-2.5">
+      <button
+        id="diet-prev-date"
+        type="button"
+        class="uno-round-border px-3 py-1.5 text-3.3 c-secondary transition-colors hover:(c-primary border-secondary/20)"
+        aria-label="切换到前一天"
+      >
+        前一天
+      </button>
+      <label for="diet-date" class="text-3.4 c-secondary">选择日期</label>
+      <input
+        id="diet-date"
+        type="date"
+        class="uno-round-border bg-background px-3 py-1.5 text-3.4 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+      />
+      <button
+        id="diet-next-date"
+        type="button"
+        class="uno-round-border px-3 py-1.5 text-3.3 c-secondary transition-colors hover:(c-primary border-secondary/20)"
+        aria-label="切换到后一天"
+      >
+        后一天
+      </button>
+      <p id="diet-selected-date-text" class="text-3.2 c-secondary" />
+    </div>
+
+    <div
+      id="diet-storage-warning"
+      class="hidden uno-round-border border-warning/25 bg-warning/8 p-3 text-3.2 c-warning"
+      role="alert"
+    />
+
+    <form id="diet-form" class="mt-4 grid gap-3.5 lg:grid-cols-12" novalidate>
+      <div class="lg:col-span-3">
+        <label for="diet-meal" class="mb-1 block text-3.2 c-secondary">餐次（可选）</label>
+        <input
+          id="diet-meal"
+          name="meal"
+          type="text"
+          maxlength="20"
+          class="uno-round-border w-full bg-background px-3 py-2 text-3.4 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+          placeholder="早餐 / 午餐 / 晚餐 / 加餐"
+        />
+      </div>
+      <div class="lg:col-span-3">
+        <label for="diet-food-name" class="mb-1 block text-3.2 c-secondary">食物名称</label>
+        <input
+          id="diet-food-name"
+          name="foodName"
+          type="text"
+          required
+          maxlength="50"
+          class="uno-round-border w-full bg-background px-3 py-2 text-3.4 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+          placeholder="例如：鸡胸肉、燕麦、酸奶"
+        />
+      </div>
+      <div class="lg:col-span-2">
+        <label for="diet-protein" class="mb-1 block text-3.2 c-secondary">蛋白质(g)</label>
+        <input
+          id="diet-protein"
+          name="protein"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="0.1"
+          value="0"
+          class="uno-round-border w-full bg-background px-3 py-2 text-3.4 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+        />
+      </div>
+      <div class="lg:col-span-2">
+        <label for="diet-carbs" class="mb-1 block text-3.2 c-secondary">碳水(g)</label>
+        <input
+          id="diet-carbs"
+          name="carbs"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="0.1"
+          value="0"
+          class="uno-round-border w-full bg-background px-3 py-2 text-3.4 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+        />
+      </div>
+      <div class="lg:col-span-2">
+        <label for="diet-fat" class="mb-1 block text-3.2 c-secondary">脂肪(g)</label>
+        <input
+          id="diet-fat"
+          name="fat"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="0.1"
+          value="0"
+          class="uno-round-border w-full bg-background px-3 py-2 text-3.4 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+        />
+      </div>
+      <div class="lg:col-span-3">
+        <label for="diet-calories" class="mb-1 block text-3.2 c-secondary">热量(kcal，可选)</label>
+        <input
+          id="diet-calories"
+          name="calories"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="1"
+          class="uno-round-border w-full bg-background px-3 py-2 text-3.4 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+          placeholder="自动按三大营养素估算"
+        />
+      </div>
+      <div class="lg:col-span-9 lg:self-end">
+        <div class="flex flex-wrap gap-2">
+          <button
+            id="diet-submit"
+            type="submit"
+            class="uno-round-border px-4 py-2 text-3.3 c-primary transition-colors hover:(border-primary/25 bg-highlight/35)"
+          >
+            添加条目
+          </button>
+          <button
+            id="diet-cancel-edit"
+            type="button"
+            class="hidden uno-round-border px-4 py-2 text-3.3 c-secondary transition-colors hover:(c-primary border-secondary/20)"
+          >
+            取消编辑
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <section class="space-y-3">
+    <h2 class="text-4.8 font-semibold c-primary">当日汇总</h2>
+    <div id="diet-summary-cards" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" />
+    <div class="uno-round-border p-4">
+      <h3 class="mb-3 text-3.8 font-semibold c-primary">三大营养素比例（按克数）</h3>
+      <div id="diet-ratio" class="space-y-2.5" />
+    </div>
+  </section>
+
+  <section class="space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-4.8 font-semibold c-primary">饮食条目</h2>
+      <p id="diet-entry-count" class="text-3.2 c-secondary" />
+    </div>
+    <div id="diet-empty" class="uno-round-border p-5 text-3.4 c-secondary">
+      当前日期暂无记录，请先添加一条饮食数据。
+    </div>
+    <ul id="diet-list" class="hidden space-y-2.5" />
+  </section>
+
+  <section class="uno-round-border bg-background/70 p-4 space-y-3">
+    <h2 class="text-4.6 font-semibold c-primary">导入 / 导出</h2>
+    <p class="text-3.2 leading-1.7 c-secondary">
+      导出为 JSON 文件，可用于备份。导入时可选择“合并”或“覆盖全部”，仅在浏览器本地处理，不上传服务端。
+    </p>
+    <div class="flex flex-wrap gap-2">
+      <button
+        id="diet-export-current"
+        type="button"
+        class="uno-round-border px-3.5 py-2 text-3.2 c-secondary transition-colors hover:(c-primary border-secondary/20)"
+      >
+        导出当前日期
+      </button>
+      <button
+        id="diet-export-all"
+        type="button"
+        class="uno-round-border px-3.5 py-2 text-3.2 c-secondary transition-colors hover:(c-primary border-secondary/20)"
+      >
+        导出全部记录
+      </button>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <label for="diet-import-mode" class="text-3.2 c-secondary">导入策略</label>
+      <select
+        id="diet-import-mode"
+        class="uno-round-border bg-background px-3 py-1.8 text-3.2 c-primary outline-none focus:(border-primary/25 ring-2 ring-primary/18)"
+      >
+        <option value="merge">合并（保留现有并新增导入项）</option>
+        <option value="replace">覆盖全部（用导入内容替换当前数据）</option>
+      </select>
+      <input
+        id="diet-import-file"
+        type="file"
+        accept="application/json"
+        class="text-3.2 c-secondary file:(uno-round-border border-secondary/10 bg-background px-3 py-1.5 text-3.2 c-secondary)"
+      />
+    </div>
+  </section>
+
+  <p id="diet-message" class="text-3.2 c-secondary" role="status" aria-live="polite" />
+</section>
+
+<script>
+  interface DietEntry {
+    id: string
+    meal: string
+    foodName: string
+    protein: number
+    carbs: number
+    fat: number
+    calories: number | null
+    createdAt: string
+    updatedAt: string
+  }
+
+  type DietRecords = Record<string, DietEntry[]>
+
+  const STORAGE_KEY = 'diet-records-v1'
+  const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+  const MAX_NUMERIC_VALUE = 99999
+
+  let records: DietRecords = {}
+  let selectedDate = ''
+  let editingId: string | null = null
+  let canUseStorage = true
+
+  let dateInput: HTMLInputElement
+  let selectedDateText: HTMLElement
+  let form: HTMLFormElement
+  let mealInput: HTMLInputElement
+  let foodNameInput: HTMLInputElement
+  let proteinInput: HTMLInputElement
+  let carbsInput: HTMLInputElement
+  let fatInput: HTMLInputElement
+  let caloriesInput: HTMLInputElement
+  let submitButton: HTMLButtonElement
+  let cancelEditButton: HTMLButtonElement
+  let listElement: HTMLUListElement
+  let emptyElement: HTMLElement
+  let countElement: HTMLElement
+  let summaryCards: HTMLElement
+  let ratioElement: HTMLElement
+  let messageElement: HTMLElement
+  let storageWarningElement: HTMLElement
+  let importFileInput: HTMLInputElement
+  let importModeSelect: HTMLSelectElement
+
+  function initDietTracker() {
+    dateInput = document.getElementById('diet-date') as HTMLInputElement
+    selectedDateText = document.getElementById('diet-selected-date-text') as HTMLElement
+    form = document.getElementById('diet-form') as HTMLFormElement
+    if (!form || form.dataset.bound === 'true') {
+      return
+    }
+    form.dataset.bound = 'true'
+
+    mealInput = document.getElementById('diet-meal') as HTMLInputElement
+    foodNameInput = document.getElementById('diet-food-name') as HTMLInputElement
+    proteinInput = document.getElementById('diet-protein') as HTMLInputElement
+    carbsInput = document.getElementById('diet-carbs') as HTMLInputElement
+    fatInput = document.getElementById('diet-fat') as HTMLInputElement
+    caloriesInput = document.getElementById('diet-calories') as HTMLInputElement
+    submitButton = document.getElementById('diet-submit') as HTMLButtonElement
+    cancelEditButton = document.getElementById('diet-cancel-edit') as HTMLButtonElement
+    listElement = document.getElementById('diet-list') as HTMLUListElement
+    emptyElement = document.getElementById('diet-empty') as HTMLElement
+    countElement = document.getElementById('diet-entry-count') as HTMLElement
+    summaryCards = document.getElementById('diet-summary-cards') as HTMLElement
+    ratioElement = document.getElementById('diet-ratio') as HTMLElement
+    messageElement = document.getElementById('diet-message') as HTMLElement
+    storageWarningElement = document.getElementById('diet-storage-warning') as HTMLElement
+    importFileInput = document.getElementById('diet-import-file') as HTMLInputElement
+    importModeSelect = document.getElementById('diet-import-mode') as HTMLSelectElement
+
+    canUseStorage = checkStorageAvailable()
+    if (!canUseStorage) {
+      storageWarningElement.textContent = '当前浏览器环境不可用 localStorage，记录仅在本次页面会话内有效。'
+      storageWarningElement.classList.remove('hidden')
+    }
+
+    records = loadRecords()
+    selectedDate = getTodayDateString()
+    dateInput.value = selectedDate
+
+    document.getElementById('diet-prev-date')?.addEventListener('click', () => changeDateBy(-1))
+    document.getElementById('diet-next-date')?.addEventListener('click', () => changeDateBy(1))
+    dateInput.addEventListener('change', handleDateChange)
+    form.addEventListener('submit', handleSubmit)
+    cancelEditButton.addEventListener('click', resetFormState)
+    importFileInput.addEventListener('change', handleImportFile)
+    document.getElementById('diet-export-current')?.addEventListener('click', () => exportRecords('current'))
+    document.getElementById('diet-export-all')?.addEventListener('click', () => exportRecords('all'))
+
+    render()
+  }
+
+  function checkStorageAvailable() {
+    try {
+      const testKey = `${STORAGE_KEY}-test`
+      window.localStorage.setItem(testKey, '1')
+      window.localStorage.removeItem(testKey)
+      return true
+    }
+    catch {
+      return false
+    }
+  }
+
+  function loadRecords(): DietRecords {
+    if (!canUseStorage) {
+      return {}
+    }
+
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY)
+      if (!raw) {
+        return {}
+      }
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') {
+        if ('records' in parsed) {
+          return sanitizeRecords((parsed as { records: unknown }).records)
+        }
+        return sanitizeRecords(parsed)
+      }
+      return {}
+    }
+    catch {
+      setMessage('检测到本地缓存数据格式异常，已忽略无效内容。', true)
+      return {}
+    }
+  }
+
+  function persistRecords() {
+    if (!canUseStorage) {
+      return
+    }
+    try {
+      const payload = JSON.stringify({
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        records,
+      })
+      window.localStorage.setItem(STORAGE_KEY, payload)
+    }
+    catch {
+      setMessage('保存失败：浏览器存储空间不足或被禁用。', true)
+    }
+  }
+
+  function sanitizeRecords(input: unknown): DietRecords {
+    if (!input || typeof input !== 'object') {
+      return {}
+    }
+
+    const result: DietRecords = {}
+    for (const [dateKey, value] of Object.entries(input as Record<string, unknown>)) {
+      if (!DATE_KEY_PATTERN.test(dateKey) || !Array.isArray(value)) {
+        continue
+      }
+      const sanitizedEntries = value
+        .map(item => sanitizeEntry(item))
+        .filter((item): item is DietEntry => item !== null)
+
+      if (sanitizedEntries.length > 0) {
+        result[dateKey] = sanitizedEntries
+      }
+    }
+    return result
+  }
+
+  function sanitizeEntry(input: unknown): DietEntry | null {
+    if (!input || typeof input !== 'object') {
+      return null
+    }
+
+    const source = input as Partial<DietEntry>
+    const foodName = typeof source.foodName === 'string' ? source.foodName.trim() : ''
+    if (!foodName) {
+      return null
+    }
+
+    return {
+      id: typeof source.id === 'string' && source.id ? source.id : createEntryId(),
+      meal: typeof source.meal === 'string' ? source.meal.trim().slice(0, 20) : '',
+      foodName: foodName.slice(0, 50),
+      protein: normalizeNumber(source.protein),
+      carbs: normalizeNumber(source.carbs),
+      fat: normalizeNumber(source.fat),
+      calories: source.calories == null ? null : normalizeNumber(source.calories),
+      createdAt: typeof source.createdAt === 'string' ? source.createdAt : new Date().toISOString(),
+      updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : new Date().toISOString(),
+    }
+  }
+
+  function normalizeNumber(value: unknown) {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) {
+      return 0
+    }
+    return Math.min(Math.max(Number(parsed.toFixed(2)), 0), MAX_NUMERIC_VALUE)
+  }
+
+  function getTodayDateString() {
+    const now = new Date()
+    return formatDateKey(now)
+  }
+
+  function formatDateKey(date: Date) {
+    const year = date.getFullYear()
+    const month = `${date.getMonth() + 1}`.padStart(2, '0')
+    const day = `${date.getDate()}`.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  function handleDateChange() {
+    const value = dateInput.value
+    if (!DATE_KEY_PATTERN.test(value)) {
+      setMessage('请选择有效日期。', true)
+      dateInput.value = selectedDate
+      return
+    }
+    selectedDate = value
+    resetFormState()
+    render()
+  }
+
+  function changeDateBy(days: number) {
+    const current = new Date(`${selectedDate}T00:00:00`)
+    if (!Number.isFinite(current.getTime())) {
+      selectedDate = getTodayDateString()
+    }
+    else {
+      current.setDate(current.getDate() + days)
+      selectedDate = formatDateKey(current)
+    }
+    dateInput.value = selectedDate
+    resetFormState()
+    render()
+  }
+
+  function getEntriesByDate(dateKey: string) {
+    return records[dateKey] ?? []
+  }
+
+  function handleSubmit(event: Event) {
+    event.preventDefault()
+
+    const foodName = foodNameInput.value.trim()
+    if (!foodName) {
+      setMessage('食物名称不能为空。', true)
+      foodNameInput.focus()
+      return
+    }
+
+    const protein = normalizeNumber(proteinInput.value)
+    const carbs = normalizeNumber(carbsInput.value)
+    const fat = normalizeNumber(fatInput.value)
+    const caloriesRaw = caloriesInput.value.trim()
+    const calories = caloriesRaw ? normalizeNumber(caloriesRaw) : null
+
+    const now = new Date().toISOString()
+    const nextEntry: DietEntry = {
+      id: editingId ?? createEntryId(),
+      meal: mealInput.value.trim().slice(0, 20),
+      foodName: foodName.slice(0, 50),
+      protein,
+      carbs,
+      fat,
+      calories,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    const currentEntries = getEntriesByDate(selectedDate)
+
+    if (editingId) {
+      records[selectedDate] = currentEntries.map((entry) => {
+        if (entry.id !== editingId) {
+          return entry
+        }
+        return {
+          ...nextEntry,
+          createdAt: entry.createdAt,
+        }
+      })
+      setMessage('条目已更新。')
+    }
+    else {
+      records[selectedDate] = [...currentEntries, nextEntry]
+      setMessage('已添加饮食条目。')
+    }
+
+    persistRecords()
+    resetFormState()
+    render()
+  }
+
+  function startEdit(id: string) {
+    const target = getEntriesByDate(selectedDate).find(entry => entry.id === id)
+    if (!target) {
+      setMessage('未找到需要编辑的条目。', true)
+      return
+    }
+    editingId = id
+    mealInput.value = target.meal
+    foodNameInput.value = target.foodName
+    proteinInput.value = `${target.protein}`
+    carbsInput.value = `${target.carbs}`
+    fatInput.value = `${target.fat}`
+    caloriesInput.value = target.calories == null ? '' : `${target.calories}`
+    submitButton.textContent = '保存修改'
+    cancelEditButton.classList.remove('hidden')
+    foodNameInput.focus()
+  }
+
+  function deleteEntry(id: string) {
+    const currentEntries = getEntriesByDate(selectedDate)
+    const nextEntries = currentEntries.filter(entry => entry.id !== id)
+    if (nextEntries.length === currentEntries.length) {
+      return
+    }
+    if (nextEntries.length === 0) {
+      delete records[selectedDate]
+    }
+    else {
+      records[selectedDate] = nextEntries
+    }
+    if (editingId === id) {
+      resetFormState()
+    }
+    persistRecords()
+    render()
+    setMessage('已删除条目。')
+  }
+
+  function resetFormState() {
+    editingId = null
+    form.reset()
+    proteinInput.value = '0'
+    carbsInput.value = '0'
+    fatInput.value = '0'
+    submitButton.textContent = '添加条目'
+    cancelEditButton.classList.add('hidden')
+  }
+
+  function createEntryId() {
+    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+  }
+
+  function render() {
+    const entries = getEntriesByDate(selectedDate)
+    renderDateLabel(selectedDate)
+    renderEntries(entries)
+    renderSummary(entries)
+  }
+
+  function renderDateLabel(dateValue: string) {
+    const date = new Date(`${dateValue}T00:00:00`)
+    if (Number.isFinite(date.getTime())) {
+      selectedDateText.textContent = date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+      })
+      return
+    }
+    selectedDateText.textContent = dateValue
+  }
+
+  function renderEntries(entries: DietEntry[]) {
+    countElement.textContent = `共 ${entries.length} 条`
+
+    if (entries.length === 0) {
+      emptyElement.classList.remove('hidden')
+      listElement.classList.add('hidden')
+      listElement.replaceChildren()
+      return
+    }
+
+    emptyElement.classList.add('hidden')
+    listElement.classList.remove('hidden')
+
+    const fragment = document.createDocumentFragment()
+    entries.forEach((entry) => {
+      const item = document.createElement('li')
+      item.className = 'uno-round-border bg-background/65 p-3.5'
+
+      const header = document.createElement('div')
+      header.className = 'mb-2 flex flex-wrap items-start justify-between gap-2'
+
+      const titleWrap = document.createElement('div')
+      const title = document.createElement('p')
+      title.className = 'text-3.8 font-semibold c-primary'
+      title.textContent = entry.foodName
+      const meal = document.createElement('p')
+      meal.className = 'text-3.1 c-secondary'
+      meal.textContent = entry.meal || '未设置餐次'
+      titleWrap.append(title, meal)
+
+      const actions = document.createElement('div')
+      actions.className = 'flex items-center gap-1.5'
+
+      const editButton = document.createElement('button')
+      editButton.type = 'button'
+      editButton.className = 'uno-round-border px-2.8 py-1.2 text-3 c-secondary transition-colors hover:(c-primary border-secondary/20)'
+      editButton.textContent = '编辑'
+      editButton.addEventListener('click', () => startEdit(entry.id))
+
+      const deleteButton = document.createElement('button')
+      deleteButton.type = 'button'
+      deleteButton.className = 'uno-round-border px-2.8 py-1.2 text-3 c-caution transition-colors hover:(border-caution/25 bg-caution/8)'
+      deleteButton.textContent = '删除'
+      deleteButton.addEventListener('click', () => deleteEntry(entry.id))
+
+      actions.append(editButton, deleteButton)
+      header.append(titleWrap, actions)
+
+      const detail = document.createElement('p')
+      detail.className = 'text-3.2 leading-1.7 c-secondary'
+      const estimatedCalories = estimateCalories(entry)
+      const caloriesText = entry.calories == null ? `${estimatedCalories} (估算)` : `${entry.calories}`
+      detail.textContent = `蛋白质 ${entry.protein}g · 碳水 ${entry.carbs}g · 脂肪 ${entry.fat}g · 热量 ${caloriesText} kcal`
+
+      item.append(header, detail)
+      fragment.appendChild(item)
+    })
+
+    listElement.replaceChildren(fragment)
+  }
+
+  function estimateCalories(entry: Pick<DietEntry, 'protein' | 'carbs' | 'fat'>) {
+    return Number((entry.protein * 4 + entry.carbs * 4 + entry.fat * 9).toFixed(1))
+  }
+
+  function renderSummary(entries: DietEntry[]) {
+    const totalProtein = entries.reduce((sum, entry) => sum + entry.protein, 0)
+    const totalCarbs = entries.reduce((sum, entry) => sum + entry.carbs, 0)
+    const totalFat = entries.reduce((sum, entry) => sum + entry.fat, 0)
+    const totalCalories = entries.reduce(
+      (sum, entry) => sum + (entry.calories == null ? estimateCalories(entry) : entry.calories),
+      0,
+    )
+    const roundedProtein = Number(totalProtein.toFixed(1))
+    const roundedCarbs = Number(totalCarbs.toFixed(1))
+    const roundedFat = Number(totalFat.toFixed(1))
+    const roundedCalories = Number(totalCalories.toFixed(1))
+
+    const cards = [
+      { label: '蛋白质', value: `${roundedProtein} g` },
+      { label: '碳水', value: `${roundedCarbs} g` },
+      { label: '脂肪', value: `${roundedFat} g` },
+      { label: '热量', value: `${roundedCalories} kcal` },
+    ]
+
+    summaryCards.replaceChildren(
+      ...cards.map((item) => {
+        const card = document.createElement('article')
+        card.className = 'uno-round-border bg-background/65 p-3.5'
+        const label = document.createElement('p')
+        label.className = 'text-3.1 c-secondary'
+        label.textContent = item.label
+        const value = document.createElement('p')
+        value.className = 'mt-1 text-4.6 font-semibold c-primary'
+        value.textContent = item.value
+        card.append(label, value)
+        return card
+      }),
+    )
+
+    const macroTotal = roundedProtein + roundedCarbs + roundedFat
+    const ratios = [
+      { label: '蛋白质', value: roundedProtein, color: 'bg-note' },
+      { label: '碳水', value: roundedCarbs, color: 'bg-tip' },
+      { label: '脂肪', value: roundedFat, color: 'bg-important' },
+    ]
+
+    ratioElement.replaceChildren(
+      ...ratios.map((item) => {
+        const row = document.createElement('div')
+        row.className = 'space-y-1'
+
+        const meta = document.createElement('div')
+        meta.className = 'flex items-center justify-between text-3.1 c-secondary'
+        const label = document.createElement('span')
+        label.textContent = item.label
+        const value = document.createElement('span')
+        const percentage = macroTotal > 0 ? Number(((item.value / macroTotal) * 100).toFixed(1)) : 0
+        value.textContent = `${item.value}g · ${percentage}%`
+        meta.append(label, value)
+
+        const track = document.createElement('div')
+        track.className = 'h-2.5 w-full rounded bg-secondary/12'
+        const bar = document.createElement('div')
+        bar.className = `h-full rounded transition-all duration-300 ${item.color}`
+        bar.style.width = `${macroTotal > 0 ? (item.value / macroTotal) * 100 : 0}%`
+        track.appendChild(bar)
+
+        row.append(meta, track)
+        return row
+      }),
+    )
+  }
+
+  function exportRecords(mode: 'current' | 'all') {
+    const exportPayload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      scope: mode,
+      records: mode === 'current'
+        ? { [selectedDate]: getEntriesByDate(selectedDate) }
+        : records,
+    }
+    const content = JSON.stringify(exportPayload, null, 2)
+    const blob = new Blob([content], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = mode === 'current'
+      ? `diet-${selectedDate}.json`
+      : `diet-all-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    setMessage(mode === 'current' ? '当前日期记录已导出。' : '全部记录已导出。')
+  }
+
+  async function handleImportFile() {
+    const targetFile = importFileInput.files?.[0]
+    if (!targetFile) {
+      return
+    }
+
+    try {
+      const text = await targetFile.text()
+      const parsed = JSON.parse(text)
+      const importedRecords = sanitizeRecords(
+        parsed && typeof parsed === 'object' && 'records' in parsed
+          ? (parsed as { records: unknown }).records
+          : parsed,
+      )
+
+      if (Object.keys(importedRecords).length === 0) {
+        setMessage('导入失败：JSON 中未找到有效记录。', true)
+        importFileInput.value = ''
+        return
+      }
+
+      if (importModeSelect.value === 'replace') {
+        records = importedRecords
+      }
+      else {
+        const merged: DietRecords = { ...records }
+        for (const [dateKey, importedEntries] of Object.entries(importedRecords)) {
+          const existing = merged[dateKey] ?? []
+          const combined = [...existing, ...importedEntries]
+          const uniqueById = new Map(combined.map(entry => [entry.id, entry]))
+          merged[dateKey] = Array.from(uniqueById.values())
+        }
+        records = merged
+      }
+
+      persistRecords()
+      render()
+      setMessage(importModeSelect.value === 'replace' ? '导入成功，已覆盖全部记录。' : '导入成功，已合并到现有记录。')
+    }
+    catch {
+      setMessage('导入失败：请确认文件为合法 JSON 且字段结构正确。', true)
+    }
+    finally {
+      importFileInput.value = ''
+    }
+  }
+
+  function setMessage(message: string, isError: boolean = false) {
+    messageElement.textContent = message
+    messageElement.className = isError ? 'text-3.2 c-caution' : 'text-3.2 c-secondary'
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDietTracker)
+  }
+  else {
+    initDietTracker()
+  }
+
+  document.addEventListener('astro:after-swap', initDietTracker)
+</script>
