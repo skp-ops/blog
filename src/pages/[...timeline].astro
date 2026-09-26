@@ -2,6 +2,7 @@
 import { defaultLocale, moreLocales } from '@/config'
 import Layout from '@/layouts/Layout.astro'
 import { getPosts } from '@/utils/content'
+import { countWords, formatNumber } from '@/utils/stats'
 
 export async function getStaticPaths() {
   type PathItem = {
@@ -33,6 +34,8 @@ const allPosts = await getPosts(lang)
 
 // Filter out draft posts
 const posts = allPosts.filter(post => !post.data.draft)
+const totalMinutes = posts.reduce((sum, post) => sum + (post.remarkPluginFrontmatter.minutes || 0), 0)
+const totalWords = posts.reduce((sum, post) => sum + countWords(post.body || ''), 0)
 
 // Group posts by year and month
 interface TimelineItem {
@@ -87,6 +90,27 @@ const months = monthNames[lang] || monthNames.en
     <p class="timeline-desc">
       {lang === 'zh' ? `共 ${posts.length} 篇文章` : lang === 'ja' ? `合計 ${posts.length} 記事` : `Total ${posts.length} posts`}
     </p>
+
+    <div class="timeline-stats">
+      <div class="timeline-stat">
+        <span class="timeline-stat-value">{formatNumber(posts.length, lang === 'ja' ? 'ja-JP' : lang === 'zh' ? 'zh-CN' : 'en-US')}</span>
+        <span class="timeline-stat-label">
+          {lang === 'zh' ? '篇文章' : lang === 'ja' ? '記事' : 'posts'}
+        </span>
+      </div>
+      <div class="timeline-stat">
+        <span class="timeline-stat-value">{formatNumber(totalWords, lang === 'ja' ? 'ja-JP' : lang === 'zh' ? 'zh-CN' : 'en-US')}</span>
+        <span class="timeline-stat-label">
+          {lang === 'zh' ? '字' : lang === 'ja' ? '文字' : 'words'}
+        </span>
+      </div>
+      <div class="timeline-stat">
+        <span class="timeline-stat-value">{formatNumber(totalMinutes, lang === 'ja' ? 'ja-JP' : lang === 'zh' ? 'zh-CN' : 'en-US')}</span>
+        <span class="timeline-stat-label">
+          {lang === 'zh' ? '分钟阅读' : lang === 'ja' ? '分の読書' : 'min read'}
+        </span>
+      </div>
+    </div>
 
     <div class="timeline-container">
       {timeline.map(({ year, month, posts }) => (
@@ -159,6 +183,44 @@ const months = monthNames[lang] || monthNames.en
   @media (min-width: 1024px) {
     .timeline-desc {
       margin-bottom: 3rem;
+    }
+  }
+
+  .timeline-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .timeline-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.12);
+    border-radius: 0.875rem;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.04);
+  }
+
+  .timeline-stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  .timeline-stat-label {
+    font-size: 0.75rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  @media (min-width: 640px) {
+    .timeline-stats {
+      gap: 1rem;
+    }
+
+    .timeline-stat-value {
+      font-size: 1.6rem;
     }
   }
 

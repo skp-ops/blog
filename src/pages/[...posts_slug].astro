@@ -7,10 +7,12 @@ import TagList from '@/components/TagList.astro'
 import BackButton from '@/components/Widgets/BackButton.astro'
 import CopyLink from '@/components/Widgets/CopyLink.astro'
 import LikeButton from '@/components/Widgets/LikeButton.astro'
+import PostNav from '@/components/Widgets/PostNav.astro'
+import ReactionBar from '@/components/Widgets/ReactionBar.astro'
 import TOC from '@/components/Widgets/TOC.astro'
 import themeConfig, { allLocales, defaultLocale, moreLocales } from '@/config'
 import Layout from '@/layouts/Layout.astro'
-import { checkPostSlugDuplication } from '@/utils/content'
+import { checkPostSlugDuplication, getRegularPosts } from '@/utils/content'
 import { getPostDescription } from '@/utils/description'
 
 export async function getStaticPaths() {
@@ -101,6 +103,10 @@ const slug = post.data.abbrlink || post.id
 const description = getPostDescription(post, 'meta')
 const { Content, headings, remarkPluginFrontmatter } = await render(post)
 const postUrl = `${themeConfig.site.url}/posts/${slug}/`
+const posts = await getRegularPosts(lang)
+const currentIndex = posts.findIndex(item => (item.data.abbrlink || item.id) === slug)
+const olderPost = currentIndex >= 0 ? posts[currentIndex + 1] : undefined
+const newerPost = currentIndex >= 0 ? posts[currentIndex - 1] : undefined
 ---
 
 <Layout
@@ -149,6 +155,7 @@ const postUrl = `${themeConfig.site.url}/posts/${slug}/`
       <div class="mb-6 mt-8 flex flex-wrap items-center gap-4">
         <CopyLink url={postUrl} />
         <LikeButton postSlug={slug} />
+        <ReactionBar postSlug={slug} />
       </div>
 
       <!-- Tag List -->
@@ -160,6 +167,7 @@ const postUrl = `${themeConfig.site.url}/posts/${slug}/`
           showCount={false}
         />
       )}
+      <PostNav previous={olderPost} next={newerPost} lang={lang} />
       <!-- Comment -->
       <Comment />
     </div>

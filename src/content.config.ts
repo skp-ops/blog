@@ -51,8 +51,6 @@ const photos = defineCollection({
     aperture: z.string().optional().default(''),
     shutter: z.string().optional().default(''),
     focalLength: z.string().optional().default(''),
-    width: z.union([z.string(), z.number()]).optional().transform(v => v === undefined ? '' : String(v)),
-    height: z.union([z.string(), z.number()]).optional().transform(v => v === undefined ? '' : String(v)),
   }),
 })
 

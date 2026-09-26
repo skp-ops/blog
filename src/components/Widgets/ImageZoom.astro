@@ -109,12 +109,10 @@ const ImageZoom = {
     document.body.style.overflow = 'hidden'
 
     this.currentImg = img
+    this.showInfoButton()
 
     const rect = img.getBoundingClientRect()
     this.originalImg = img
-    if (!img.hasAttribute('tabindex')) {
-      img.setAttribute('tabindex', '0')
-    }
 
     // Create and style cloned image
     this.zoomedImg = img.cloneNode() as HTMLImageElement
@@ -170,7 +168,7 @@ const ImageZoom = {
       maxH = availH - 60 // More vertical padding
     }
 
-    const scale = Math.min(1, maxW / rect.width, maxH / rect.height)
+    const scale = Math.min(maxW / rect.width, maxH / rect.height)
 
     // Build and attach floating info UI
     this.attachInfoCard(img)
@@ -223,51 +221,43 @@ const ImageZoom = {
     this.overlay.style.opacity = '0'
     document.body.style.overflow = ''
 
-    const original = this.originalImg
-
     // Clean up after animation completes
     setTimeout(() => {
-      this.teardown()
-      if (original) {
-        original.focus()
+      // Remove zoomed image
+      if (this.zoomedImg && this.zoomedImg.parentNode)
+        this.zoomedImg.parentNode.removeChild(this.zoomedImg)
+      this.zoomedImg = null
+
+      // Hide overlay
+      if (this.overlay) {
+        this.overlay.style.display = 'none'
       }
+
+      // Remove info card
+      if (this.infoCard && this.infoCard.parentNode)
+        this.infoCard.parentNode.removeChild(this.infoCard)
+      this.infoCard = null
+
+      this.hideInfoButton()
+      this.currentImg = null
+
+      // Restore original image and focus
+      if (this.originalImg) {
+        this.originalImg.focus()
+      }
+      this.originalImg = null
     }, 300)
-  },
-
-  // Immediately remove any open overlay and restore the page state.
-  teardown() {
-    if (this.zoomedImg && this.zoomedImg.parentNode) {
-      this.zoomedImg.parentNode.removeChild(this.zoomedImg)
-    }
-    this.zoomedImg = null
-
-    if (this.infoCard && this.infoCard.parentNode) {
-      this.infoCard.parentNode.removeChild(this.infoCard)
-    }
-    this.infoCard = null
-
-    if (this.overlay) {
-      this.overlay.style.display = 'none'
-      this.overlay.style.opacity = '0'
-    }
-    document.body.style.overflow = ''
-    this.hideInfoButton()
-    this.currentImg = null
-    this.originalImg = null
   },
 
   // Setup Overlay after page load
   setupOverlay() {
     this.createOverlay()
-    this.teardown()
+    this.zoomedImg = null
+    this.originalImg = null
   },
 
   // Handle click events
   handleClick(event: MouseEvent) {
-    if (this.infoCard && this.infoCard.contains(event.target as Node)) {
-      return
-    }
-
     if (this.zoomedImg) {
       this.close()
       return
@@ -556,7 +546,6 @@ const ImageZoom = {
     this.infoCard.appendChild(metaList)
 
     this.overlay.appendChild(this.infoCard)
-    this.showInfoButton()
 
     // Animate in
     requestAnimationFrame(() => {

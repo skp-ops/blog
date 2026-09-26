@@ -1,0 +1,128 @@
+---
+interface Props {
+  show: boolean
+}
+
+const { show } = Astro.props
+---
+
+<div
+  class="font-size-control"
+  data-show={show ? 'true' : 'false'}
+  role="group"
+  aria-label="Font size"
+>
+  <button type="button" class="font-size-button" data-action="decrease" aria-label="Decrease font size">
+    A−
+  </button>
+  <button type="button" class="font-size-button font-size-reset" data-action="reset" aria-label="Reset font size">
+    A
+  </button>
+  <button type="button" class="font-size-button" data-action="increase" aria-label="Increase font size">
+    A+
+  </button>
+</div>
+
+<style>
+  .font-size-control {
+    position: fixed;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 90;
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.35rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+    border-radius: 9999px;
+    background: oklch(var(--un-preset-theme-colors-background) / 0.9);
+    box-shadow: 0 6px 24px oklch(var(--un-preset-theme-colors-secondary) / 0.16);
+    backdrop-filter: blur(12px);
+  }
+
+  .font-size-control[data-show='false'] {
+    display: none;
+  }
+
+  .font-size-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: 9999px;
+    background: transparent;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .font-size-button:hover {
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.1);
+    color: oklch(var(--un-preset-theme-colors-primary));
+    transform: translateY(-1px);
+  }
+
+  .font-size-button:active {
+    transform: scale(0.92);
+  }
+
+  .font-size-reset {
+    border-left: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+    border-right: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.15);
+    border-radius: 0;
+  }
+</style>
+
+<script>
+const FONT_SIZE_KEY = 'blog-font-size-scale'
+const MIN_FONT_SCALE = 0.85
+const MAX_FONT_SCALE = 1.3
+const FONT_SCALE_STEP = 0.05
+const DEFAULT_FONT_SCALE = 1
+
+function readFontScale(): number {
+  const stored = Number.parseFloat(localStorage.getItem(FONT_SIZE_KEY) || '')
+  if (!Number.isFinite(stored))
+    return DEFAULT_FONT_SCALE
+  return Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, stored))
+}
+
+function applyFontScale(scale: number) {
+  document.documentElement.style.fontSize = `${scale * 100}%`
+  localStorage.setItem(FONT_SIZE_KEY, String(scale))
+}
+
+function initFontSizeControl() {
+  applyFontScale(readFontScale())
+
+  const control = document.querySelector('.font-size-control') as HTMLElement | null
+  if (!control)
+    return
+
+  const buttons = control.querySelectorAll<HTMLButtonElement>('.font-size-button')
+  buttons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const current = readFontScale()
+      const action = button.dataset.action
+      const next = action === 'reset'
+        ? DEFAULT_FONT_SCALE
+        : action === 'increase'
+          ? current + FONT_SCALE_STEP
+          : current - FONT_SCALE_STEP
+      applyFontScale(Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, next)))
+    })
+  })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFontSizeControl)
+}
+else {
+  initFontSizeControl()
+}
+
+document.addEventListener('astro:page-load', initFontSizeControl)
+</script>

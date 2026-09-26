@@ -6,27 +6,18 @@ export const prerender = false
 
 const toStr = (v: unknown) => (v === undefined || v === null ? '' : String(v))
 
-let sortedPhotosCache: Promise<any[]> | null = null
-
-function getSortedPhotos() {
-  if (!sortedPhotosCache) {
-    sortedPhotosCache = getCollection('photos').then(photos =>
-      photos.slice().sort(
-        (a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime(),
-      ),
-    )
-  }
-  return sortedPhotosCache
-}
-
 export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url)
 
   const offset = Math.max(0, Number.parseInt(url.searchParams.get('offset') || '0', 10) || 0)
   const limitRaw = Number.parseInt(url.searchParams.get('limit') || '30', 10) || 30
-  const limit = Math.min(1000, Math.max(1, limitRaw))
+  const limit = Math.min(60, Math.max(1, limitRaw))
 
-  const sorted = await getSortedPhotos()
+  const photos = await getCollection('photos')
+
+  const sorted = photos
+    .slice()
+    .sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime())
 
   const total = sorted.length
   const items = sorted.slice(offset, offset + limit).map((photo) => ({
@@ -43,15 +34,14 @@ export const GET: APIRoute = async ({ request }) => {
     aperture: toStr((photo.data as any).aperture),
     shutter: toStr((photo.data as any).shutter),
     focalLength: toStr((photo.data as any).focalLength),
-    width: toStr((photo.data as any).width),
-    height: toStr((photo.data as any).height),
   }))
 
   return new Response(JSON.stringify({ total, offset, limit, items }), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=3600',
+      // safe-ish caching (content changes are infrequent; still allow revalidation)
+      'Cache-Control': 'public, max-age=60',
     },
   })
 }
