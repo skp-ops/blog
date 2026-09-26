@@ -2,6 +2,7 @@
 import { themeConfig } from '@/config'
 import { getLangFromPath } from '@/i18n/lang'
 import { getLocalizedPath } from '@/i18n/path'
+import VisitorCounter from '@/components/Widgets/VisitorCounter.astro'
 
 const { author } = themeConfig.site
 const { links: socialLinks, startYear } = themeConfig.footer
@@ -38,6 +39,8 @@ const footerLinkClass = 'highlight-hover py-0.8 transition-colors after:bottom-0
   <p>
     © {year} {author}
   </p>
+
+  <VisitorCounter />
 
   <p>
     Thanks to <a class={footerLinkClass} href="https://github.com/radishzzz/astro-theme-retypeset" target="_blank" rel="noopener noreferrer">Retypeset</a>

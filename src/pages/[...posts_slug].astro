@@ -6,10 +6,13 @@ import PostDate from '@/components/PostDate.astro'
 import TagList from '@/components/TagList.astro'
 import BackButton from '@/components/Widgets/BackButton.astro'
 import CopyLink from '@/components/Widgets/CopyLink.astro'
+import BookmarkButton from '@/components/Widgets/BookmarkButton.astro'
 import LikeButton from '@/components/Widgets/LikeButton.astro'
 import PostNav from '@/components/Widgets/PostNav.astro'
 import ReactionBar from '@/components/Widgets/ReactionBar.astro'
+import ShareButton from '@/components/Widgets/ShareButton.astro'
 import TOC from '@/components/Widgets/TOC.astro'
+import ViewCounter from '@/components/Widgets/ViewCounter.astro'
 import themeConfig, { allLocales, defaultLocale, moreLocales } from '@/config'
 import Layout from '@/layouts/Layout.astro'
 import { checkPostSlugDuplication, getRegularPosts } from '@/utils/content'
@@ -107,6 +110,7 @@ const posts = await getRegularPosts(lang)
 const currentIndex = posts.findIndex(item => (item.data.abbrlink || item.id) === slug)
 const olderPost = currentIndex >= 0 ? posts[currentIndex + 1] : undefined
 const newerPost = currentIndex >= 0 ? posts[currentIndex - 1] : undefined
+const currentUrl = `${themeConfig.site.url}${Astro.url.pathname}`
 ---
 
 <Layout
@@ -142,6 +146,7 @@ const newerPost = currentIndex >= 0 ? posts[currentIndex - 1] : undefined
         updatedDate={post.data.updated}
         minutes={remarkPluginFrontmatter.minutes}
       />
+      <ViewCounter postSlug={slug} />
     </div>
     <!-- TOC -->
     {post.data.toc && <TOC headings={headings} />}
@@ -154,6 +159,8 @@ const newerPost = currentIndex >= 0 ? posts[currentIndex - 1] : undefined
       <!-- Action Buttons -->
       <div class="mb-6 mt-8 flex flex-wrap items-center gap-4">
         <CopyLink url={postUrl} />
+        <BookmarkButton postSlug={slug} title={post.data.title} url={currentUrl} />
+        <ShareButton title={post.data.title} url={currentUrl} />
         <LikeButton postSlug={slug} />
         <ReactionBar postSlug={slug} />
       </div>

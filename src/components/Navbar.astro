@@ -10,6 +10,9 @@ const isTagActive = isTag
 const isAboutActive = isAbout
 const isTimelineActive = Astro.url.pathname.includes('/timeline')
 const isGalleryActive = Astro.url.pathname.includes('/gallery')
+const isNotesActive = Astro.url.pathname.includes('/notes')
+const isSeriesActive = Astro.url.pathname.includes('/series')
+const isBookmarksActive = Astro.url.pathname.includes('/bookmarks')
 
 function getNavItemClass(isActive: boolean) {
   return isActive
@@ -29,6 +32,16 @@ const navItems = [
     className: getNavItemClass(isTagActive),
   },
   {
+    href: '/series/',
+    label: currentUI.series,
+    className: getNavItemClass(isSeriesActive),
+  },
+  {
+    href: '/notes/',
+    label: currentUI.notes,
+    className: getNavItemClass(isNotesActive),
+  },
+  {
     href: '/timeline/',
     label: currentUI.timeline,
     className: getNavItemClass(isTimelineActive),
@@ -37,6 +50,11 @@ const navItems = [
     href: '/gallery/',
     label: currentUI.gallery,
     className: getNavItemClass(isGalleryActive),
+  },
+  {
+    href: '/bookmarks/',
+    label: currentUI.bookmarks,
+    className: getNavItemClass(isBookmarksActive),
   },
   {
     href: '/about/',

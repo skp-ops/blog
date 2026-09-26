@@ -1,0 +1,84 @@
+---
+interface Props {
+  postSlug: string
+}
+
+const { postSlug } = Astro.props
+---
+
+<span class="view-counter" data-slug={postSlug}>
+  <span class="view-counter-value">0</span>
+  <span class="view-counter-label">views</span>
+</span>
+
+<style>
+  .view-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.8rem;
+  }
+
+  .view-counter-value {
+    font-weight: 600;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+</style>
+
+<script>
+function initViewCounter() {
+  const counter = document.querySelector('.view-counter') as HTMLElement | null
+  if (!counter)
+    return
+
+  const slug = counter.dataset.slug
+  const value = counter.querySelector('.view-counter-value')
+  if (!slug || !value)
+    return
+
+  const visitedKey = `blog-viewed-${slug}`
+  const countKey = `blog-view-count-${slug}`
+  const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+  if (isDevelopment) {
+    if (!localStorage.getItem(visitedKey)) {
+      const count = Number.parseInt(localStorage.getItem(countKey) || '0', 10) + 1
+      localStorage.setItem(visitedKey, 'true')
+      localStorage.setItem(countKey, String(count))
+      value.textContent = String(count)
+    }
+    else {
+      value.textContent = localStorage.getItem(countKey) || '0'
+    }
+    return
+  }
+
+  if (!localStorage.getItem(visitedKey)) {
+    fetch(`/api/views/${slug}`, { method: 'POST' })
+      .then(res => res.json())
+      .then((data) => {
+        value.textContent = String(data.count || 0)
+        localStorage.setItem(visitedKey, 'true')
+      })
+      .catch(() => {
+        value.textContent = '0'
+      })
+  }
+  else {
+    fetch(`/api/views/${slug}`)
+      .then(res => res.json())
+      .then(data => value.textContent = String(data.count || 0))
+      .catch(() => value.textContent = '0')
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initViewCounter)
+}
+else {
+  initViewCounter()
+}
+
+document.addEventListener('astro:after-swap', initViewCounter)
+</script>

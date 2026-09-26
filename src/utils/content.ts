@@ -231,6 +231,70 @@ async function _getPostsByTag(tag: string, lang?: string) {
 
 export const getPostsByTag = memoize(_getPostsByTag)
 
+export interface Series {
+  slug: string
+  title: string
+  posts: Post[]
+}
+
+async function _getSeries(lang?: string): Promise<Series[]> {
+  const posts = await getRegularPosts(lang)
+  const seriesMap = new Map<string, Series>()
+
+  posts.forEach((post) => {
+    const slug = post.data.series
+    if (!slug)
+      return
+
+    if (!seriesMap.has(slug)) {
+      seriesMap.set(slug, {
+        slug,
+        title: post.data.seriesTitle || slug,
+        posts: [],
+      })
+    }
+
+    seriesMap.get(slug)!.posts.push(post)
+  })
+
+  return [...seriesMap.values()]
+    .map((series) => {
+      series.posts.sort((a, b) => {
+        const orderDifference = (a.data.seriesOrder ?? 0) - (b.data.seriesOrder ?? 0)
+        if (orderDifference !== 0)
+          return orderDifference
+        return a.data.published.valueOf() - b.data.published.valueOf()
+      })
+      return series
+    })
+    .sort((a, b) => a.title.localeCompare(b.title))
+}
+
+export const getSeries = memoize(_getSeries)
+
+async function _getPostsBySeries(series: string, lang?: string): Promise<Post[]> {
+  const allSeries = await getSeries(lang)
+  return allSeries.find(item => item.slug === series)?.posts ?? []
+}
+
+export const getPostsBySeries = memoize(_getPostsBySeries)
+
+async function _getSeriesSupportedLangs(series: string): Promise<string[]> {
+  const posts = await getCollection(
+    'posts',
+    ({ data }) => !data.draft && data.series === series,
+  )
+  const { allLocales } = await import('@/config')
+
+  return allLocales.filter(locale =>
+    posts.some(post =>
+      post.data.lang === locale || post.data.lang === '',
+    ),
+  )
+}
+
+export const getSeriesSupportedLangs = memoize(_getSeriesSupportedLangs)
+
 /**
  * Check which languages support a specific tag
  *

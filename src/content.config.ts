@@ -24,6 +24,9 @@ const posts = defineCollection({
       abbrlink => !abbrlink || /^[a-z0-9\-]*$/.test(abbrlink),
       { message: 'Abbrlink can only contain lowercase letters, numbers and hyphens' },
     ),
+    series: z.string().optional().default('').transform(v => v.trim().toLowerCase()),
+    seriesTitle: z.string().optional().default(''),
+    seriesOrder: z.number().int().min(0).optional().default(0),
   }),
 })
 
@@ -54,4 +57,17 @@ const photos = defineCollection({
   }),
 })
 
-export const collections = { posts, about, photos }
+const notes = defineCollection({
+  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/notes' }),
+  schema: z.object({
+    title: z.string(),
+    date: z.coerce.date(),
+    description: z.string().optional().default(''),
+    image: z.string().optional().default(''),
+    tags: z.array(z.string()).optional().default([]),
+    draft: z.boolean().optional().default(false),
+    lang: z.enum(['', ...allLocales]).optional().default(''),
+  }),
+})
+
+export const collections = { posts, about, photos, notes }

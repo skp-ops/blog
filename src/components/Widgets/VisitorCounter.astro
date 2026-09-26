@@ -1,0 +1,74 @@
+<span class="visitor-counter">
+  <span class="visitor-counter-value">0</span>
+  <span class="visitor-counter-label">visitors</span>
+</span>
+
+<style>
+  .visitor-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.8rem;
+  }
+
+  .visitor-counter-value {
+    font-weight: 600;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+</style>
+
+<script>
+const VISITOR_KEY = 'blog-visitor-counted'
+
+function initVisitorCounter() {
+  const counter = document.querySelector('.visitor-counter') as HTMLElement | null
+  if (!counter)
+    return
+
+  const value = counter.querySelector('.visitor-counter-value')
+  if (!value)
+    return
+
+  const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+  if (isDevelopment) {
+    const count = localStorage.getItem('blog-visitor-count') || '0'
+    if (!localStorage.getItem(VISITOR_KEY)) {
+      const next = Number.parseInt(count, 10) + 1
+      localStorage.setItem(VISITOR_KEY, 'true')
+      localStorage.setItem('blog-visitor-count', String(next))
+      value.textContent = String(next)
+    }
+    else {
+      value.textContent = count
+    }
+    return
+  }
+
+  if (!localStorage.getItem(VISITOR_KEY)) {
+    fetch('/api/visitors', { method: 'POST' })
+      .then(res => res.json())
+      .then((data) => {
+        value.textContent = String(data.count || 0)
+        localStorage.setItem(VISITOR_KEY, 'true')
+      })
+      .catch(() => value.textContent = '0')
+  }
+  else {
+    fetch('/api/visitors')
+      .then(res => res.json())
+      .then(data => value.textContent = String(data.count || 0))
+      .catch(() => value.textContent = '0')
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initVisitorCounter)
+}
+else {
+  initVisitorCounter()
+}
+
+document.addEventListener('astro:after-swap', initVisitorCounter)
+</script>

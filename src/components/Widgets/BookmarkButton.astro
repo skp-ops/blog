@@ -1,0 +1,99 @@
+---
+interface Props {
+  postSlug: string
+  title: string
+  url: string
+}
+
+const { postSlug, title, url } = Astro.props
+---
+
+<button
+  type="button"
+  class="bookmark-button"
+  data-slug={postSlug}
+  data-title={title}
+  data-url={url}
+  aria-label="Bookmark this post"
+>
+  <svg class="bookmark-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+  </svg>
+  <span class="bookmark-text">收藏</span>
+</button>
+
+<style>
+  .bookmark-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.2);
+    border-radius: 9999px;
+    background: transparent;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .bookmark-button:hover {
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.4);
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  .bookmark-button.saved {
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.5);
+    color: oklch(var(--un-preset-theme-colors-primary));
+    background: oklch(var(--un-preset-theme-colors-primary) / 0.08);
+  }
+
+  .bookmark-button.saved .bookmark-icon {
+    fill: currentColor;
+  }
+</style>
+
+<script>
+const BOOKMARKS_KEY = 'blog-bookmarks'
+
+function getBookmarks(): Array<{ title: string, url: string }> {
+  try {
+    const value = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]')
+    return Array.isArray(value) ? value : []
+  }
+  catch {
+    return []
+  }
+}
+
+function initBookmarkButton() {
+  const button = document.querySelector('.bookmark-button') as HTMLButtonElement | null
+  if (!button)
+    return
+
+  const url = button.dataset.url || window.location.href
+  const title = button.dataset.title || document.title
+  const saved = getBookmarks().some(item => item.url === url)
+  button.classList.toggle('saved', saved)
+
+  button.addEventListener('click', () => {
+    const items = getBookmarks()
+    const exists = items.some(item => item.url === url)
+    const next = exists
+      ? items.filter(item => item.url !== url)
+      : [{ title, url }, ...items]
+
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(next))
+    button.classList.toggle('saved', !exists)
+  })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initBookmarkButton)
+}
+else {
+  initBookmarkButton()
+}
+
+document.addEventListener('astro:after-swap', initBookmarkButton)
+</script>
