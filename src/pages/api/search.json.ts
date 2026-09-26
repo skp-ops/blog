@@ -1,19 +1,19 @@
 import type { APIRoute } from 'astro'
 import { getCollection } from 'astro:content'
-import { defaultLocale } from '@/config'
+import { markdownToPlainText } from '@/utils/search'
 
 export const GET: APIRoute = async () => {
   const posts = await getCollection('posts')
 
   const searchData = posts
-    .filter(post => !post.id.startsWith('_') && !post.data.draft)
+    .filter(post => !post.id.startsWith('_') && (import.meta.env.DEV || !post.data.draft))
     .map((post) => {
       // Extract lang from post data or filename
       const matches = post.id.match(/-([a-z]{2})\.md$/)
-      const lang = post.data.lang || (matches ? matches[1] : defaultLocale)
+      const lang = post.data.lang || (matches ? matches[1] : '')
 
-      // Use abbrlink for slug (fallback to filename if not set)
-      const postSlug = post.data.abbrlink || post.id.replace(/\.md$/, '').split('/').pop()
+      // Keep the exact same slug rule as the post page route.
+      const postSlug = post.data.abbrlink || post.id
 
       // All posts use the same URL format without language prefix
       const slug = `/posts/${postSlug}/`
@@ -25,6 +25,7 @@ export const GET: APIRoute = async () => {
         description: post.data.description || '',
         date: post.data.published,
         tags: post.data.tags || [],
+        content: markdownToPlainText(post.body || ''),
       }
     })
     .sort((a, b) => {

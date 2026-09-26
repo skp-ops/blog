@@ -1,0 +1,181 @@
+---
+interface Props {
+  postSlug: string
+}
+
+const { postSlug } = Astro.props
+const reactions = [
+  { emoji: '👍', label: 'like' },
+  { emoji: '❤️', label: 'love' },
+  { emoji: '😂', label: 'laugh' },
+  { emoji: '😮', label: 'wow' },
+  { emoji: '😢', label: 'sad' },
+]
+---
+
+<div class="reaction-bar" data-slug={postSlug}>
+  {reactions.map(reaction => (
+    <button
+      type="button"
+      class="reaction-button"
+      data-emoji={reaction.emoji}
+      aria-label={reaction.label}
+      title={reaction.label}
+    >
+      <span class="reaction-emoji">{reaction.emoji}</span>
+      <span class="reaction-count">0</span>
+    </button>
+  ))}
+</div>
+
+<style>
+  .reaction-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .reaction-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.16);
+    border-radius: 9999px;
+    background: oklch(var(--un-preset-theme-colors-background));
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  }
+
+  .reaction-button:hover {
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.35);
+    color: oklch(var(--un-preset-theme-colors-primary));
+    transform: translateY(-1px);
+  }
+
+  .reaction-button.selected {
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.55);
+    background: oklch(var(--un-preset-theme-colors-primary) / 0.08);
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  .reaction-emoji {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .reaction-count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 1rem;
+    text-align: center;
+  }
+</style>
+
+<script>
+function initReactionBar() {
+  const bar = document.querySelector('.reaction-bar') as HTMLElement | null
+  if (!bar)
+    return
+
+  const slug = bar.dataset.slug
+  if (!slug)
+    return
+
+  const selectedKey = `blog-reaction-${slug}`
+  const storedKey = `blog-reaction-counts-${slug}`
+  const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  const buttons = bar.querySelectorAll<HTMLButtonElement>('.reaction-button')
+  const selectedEmoji = localStorage.getItem(selectedKey)
+
+  function getLocalCounts(): Record<string, number> {
+    try {
+      return JSON.parse(localStorage.getItem(storedKey) || '{}')
+    }
+    catch {
+      return {}
+    }
+  }
+
+  function setButtonCount(button: HTMLButtonElement, count: number) {
+    const countElement = button.querySelector('.reaction-count')
+    if (countElement)
+      countElement.textContent = String(count)
+  }
+
+  function markSelected(button: HTMLButtonElement | null) {
+    buttons.forEach(item => item.classList.toggle('selected', item === button))
+  }
+
+  if (isDevelopment) {
+    const counts = getLocalCounts()
+    buttons.forEach((button) => {
+      const emoji = button.dataset.emoji || ''
+      setButtonCount(button, counts[emoji] || 0)
+      if (emoji === selectedEmoji)
+        markSelected(button)
+    })
+  }
+  else {
+    fetch(`/api/reactions/${slug}`)
+      .then(res => res.json())
+      .then((data) => {
+        const counts = data.counts || {}
+        buttons.forEach((button) => {
+          const emoji = button.dataset.emoji || ''
+          setButtonCount(button, counts[emoji] || 0)
+          if (emoji === selectedEmoji)
+            markSelected(button)
+        })
+      })
+      .catch(() => {
+        buttons.forEach(button => setButtonCount(button, 0))
+      })
+  }
+
+  buttons.forEach((button) => {
+    button.addEventListener('click', async () => {
+      const emoji = button.dataset.emoji || ''
+      if (!emoji || localStorage.getItem(selectedKey))
+        return
+
+      if (isDevelopment) {
+        const counts = getLocalCounts()
+        counts[emoji] = (counts[emoji] || 0) + 1
+        localStorage.setItem(storedKey, JSON.stringify(counts))
+        localStorage.setItem(selectedKey, emoji)
+        setButtonCount(button, counts[emoji])
+        markSelected(button)
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/reactions/${slug}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji }),
+        })
+        const data = await response.json()
+        if (response.ok) {
+          localStorage.setItem(selectedKey, emoji)
+          setButtonCount(button, data.count)
+          markSelected(button)
+        }
+      }
+      catch (error) {
+        console.error('Error saving reaction:', error)
+      }
+    })
+  })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initReactionBar)
+}
+else {
+  initReactionBar()
+}
+
+document.addEventListener('astro:after-swap', initReactionBar)
+</script>

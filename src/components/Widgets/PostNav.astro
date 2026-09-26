@@ -1,0 +1,112 @@
+---
+import type { Post } from '@/utils/content'
+import { getPostPath } from '@/i18n/path'
+
+interface Props {
+  previous?: Post
+  next?: Post
+  lang: string
+}
+
+const { previous, next, lang } = Astro.props
+
+const labels = {
+  en: {
+    previous: 'Older Post',
+    next: 'Newer Post',
+  },
+  zh: {
+    previous: '上一篇',
+    next: '下一篇',
+  },
+  ja: {
+    previous: '前の記事',
+    next: '次の記事',
+  },
+}
+const t = labels[lang as keyof typeof labels] ?? labels.en
+
+function getPostData(post?: Post) {
+  if (!post)
+    return null
+
+  const slug = post.data.abbrlink || post.id
+  return {
+    title: post.data.title,
+    url: getPostPath(slug, lang),
+  }
+}
+
+const previousData = getPostData(previous)
+const nextData = getPostData(next)
+---
+
+{(previousData || nextData) && (
+  <nav class="post-nav" aria-label="Post navigation">
+    {previousData && (
+      <a href={previousData.url} class="post-nav-link post-nav-previous" data-astro-prefetch>
+        <span class="post-nav-label">← {t.previous}</span>
+        <span class="post-nav-title">{previousData.title}</span>
+      </a>
+    )}
+    {nextData && (
+      <a href={nextData.url} class="post-nav-link post-nav-next" data-astro-prefetch>
+        <span class="post-nav-label">{t.next} →</span>
+        <span class="post-nav-title">{nextData.title}</span>
+      </a>
+    )}
+  </nav>
+)}
+
+<style>
+  .post-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 2.5rem;
+  }
+
+  .post-nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.14);
+    border-radius: 0.75rem;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.04);
+    color: oklch(var(--un-preset-theme-colors-primary));
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  }
+
+  .post-nav-link:hover {
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.35);
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.08);
+    transform: translateY(-1px);
+  }
+
+  .post-nav-next {
+    text-align: right;
+  }
+
+  .post-nav-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  .post-nav-title {
+    font-size: 0.925rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 640px) {
+    .post-nav {
+      grid-template-columns: 1fr;
+    }
+
+    .post-nav-next {
+      text-align: left;
+    }
+  }
+</style>

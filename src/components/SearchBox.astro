@@ -1,4 +1,5 @@
 ---
+import { base, defaultLocale } from '@/config'
 import { ui } from '@/i18n/ui'
 import { getPageInfo } from '@/utils/page'
 
@@ -6,7 +7,12 @@ const { currentLang } = getPageInfo(Astro.url.pathname)
 const currentUI = ui[currentLang as keyof typeof ui] ?? {}
 ---
 
-<div class="search-container">
+<div
+  class="search-container"
+  data-lang={currentLang}
+  data-default-lang={defaultLocale}
+  data-base={base}
+>
   <div class="search-box">
     <svg
       class="search-icon"
@@ -66,131 +72,438 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
    description?: string
    date: Date
    tags?: string[]
+   content?: string
  }
 
  let posts: Post[] = []
+ let searchContainer: HTMLElement
  let searchInput: HTMLInputElement
  let searchClear: HTMLButtonElement
  let searchResults: HTMLElement
  let searchResultsContent: HTMLElement
  let currentLang: string
+ let defaultLang: string
+ let basePath: string
+
+ let searchTimer: number | undefined
+ let selectedIndex = -1
+ let resultItems: HTMLAnchorElement[] = []
+ const cleanupFns: Array<() => void> = []
+ const SEARCH_HISTORY_KEY = 'blog-search-history'
+ const MAX_RECENT_SEARCHES = 5
+
+ function cancelPendingSearch() {
+   if (searchTimer !== undefined) {
+     window.clearTimeout(searchTimer)
+     searchTimer = undefined
+   }
+ }
+
+ function getPostHref(post: Post): string {
+   const prefix = currentLang === defaultLang ? '' : `/${currentLang}`
+   return `${basePath}${prefix}${post.slug}`
+ }
+
+ function getRecentSearches(): string[] {
+   try {
+     const raw = localStorage.getItem(SEARCH_HISTORY_KEY)
+     const parsed = raw ? JSON.parse(raw) : []
+     return Array.isArray(parsed)
+       ? parsed.filter((item): item is string => typeof item === 'string').slice(0, MAX_RECENT_SEARCHES)
+       : []
+   }
+   catch {
+     return []
+   }
+ }
+
+ function saveRecentSearch(query: string) {
+   const normalized = query.trim()
+   if (normalized.length < 2) {
+     return
+   }
+
+   try {
+     const next = [normalized, ...getRecentSearches().filter(item => item !== normalized)]
+       .slice(0, MAX_RECENT_SEARCHES)
+     localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next))
+   }
+   catch {
+     // localStorage can be unavailable in private/security-restricted contexts.
+   }
+ }
+
+ function showRecentSearches() {
+   const recentSearches = getRecentSearches()
+   if (recentSearches.length === 0) {
+     hideResults()
+     return
+   }
+
+   searchResultsContent.replaceChildren()
+
+   const header = document.createElement('div')
+   header.className = 'search-recent-header'
+   header.textContent = document.documentElement.lang?.startsWith('zh')
+     ? '最近搜索'
+     : document.documentElement.lang?.startsWith('ja')
+       ? '最近の検索'
+       : 'Recent searches'
+
+   const list = document.createElement('div')
+   list.className = 'search-recent-list'
+
+   recentSearches.forEach((query) => {
+     const button = document.createElement('button')
+     button.type = 'button'
+     button.className = 'search-recent-item'
+     button.textContent = query
+     button.addEventListener('click', () => {
+       searchInput.value = query
+       searchClear.style.display = 'flex'
+       executeSearch(query)
+       saveRecentSearch(query)
+       searchInput.focus()
+     })
+     list.appendChild(button)
+   })
+
+   searchResultsContent.append(header, list)
+   searchResults.style.display = 'block'
+ }
 
  async function initSearch() {
+   searchContainer = document.querySelector('.search-container') as HTMLElement
    searchInput = document.getElementById('search-input') as HTMLInputElement
    searchClear = document.getElementById('search-clear') as HTMLButtonElement
    searchResults = document.getElementById('search-results') as HTMLElement
    searchResultsContent = document.getElementById('search-results-content') as HTMLElement
 
-   // Get current language from URL path
-   const pathParts = window.location.pathname.split('/')
-   currentLang = (pathParts[1] && pathParts[1].length === 2) ? pathParts[1] : 'zh'
+   // Language and base path are provided by the server-rendered component.
+   currentLang = searchContainer.dataset.lang || 'zh'
+   defaultLang = searchContainer.dataset.defaultLang || 'zh'
+   basePath = searchContainer.dataset.base || ''
 
-   // Fetch posts data
+   // Remove listeners from any previous page/view-transition initialization.
+   cleanupFns.forEach(fn => fn())
+   cleanupFns.length = 0
+   cancelPendingSearch()
+   selectedIndex = -1
+   resultItems = []
+
+   const controller = new AbortController()
+   cleanupFns.push(() => controller.abort())
+
+   // Fetch posts data.
    try {
-     const response = await fetch('/api/search.json')
+     const response = await fetch(`${basePath}/api/search.json`, { signal: controller.signal })
      if (response.ok) {
        const allPosts = await response.json()
-       // Filter posts by current language
-       posts = allPosts.filter((post: Post) => post.lang === currentLang)
+       // Include universal posts in every language.
+       posts = allPosts.filter((post: Post) => post.lang === currentLang || post.lang === '')
      }
    }
- catch (error) {
-     console.error('Failed to fetch posts data:', error)
+   catch (error) {
+     if ((error as Error).name !== 'AbortError') {
+       console.error('Failed to fetch posts data:', error)
+       posts = []
+     }
    }
 
    // Event listeners
-   searchInput.addEventListener('input', handleSearch)
-   searchInput.addEventListener('focus', handleSearch)
-   searchClear.addEventListener('click', clearSearch)
+   const onInput = () => handleSearch()
+   const onFocus = () => handleSearch()
+   const onKeydown = (event: KeyboardEvent) => handleKeydown(event)
+   const onClear = () => clearSearch()
+
+   searchInput.addEventListener('input', onInput)
+   searchInput.addEventListener('focus', onFocus)
+   searchInput.addEventListener('keydown', onKeydown)
+   searchClear.addEventListener('click', onClear)
+   cleanupFns.push(() => searchInput.removeEventListener('input', onInput))
+   cleanupFns.push(() => searchInput.removeEventListener('focus', onFocus))
+   cleanupFns.push(() => searchInput.removeEventListener('keydown', onKeydown))
+   cleanupFns.push(() => searchClear.removeEventListener('click', onClear))
 
    // Close search results when clicking outside
-   document.addEventListener('click', (e) => {
+   const onDocumentClick = (e: MouseEvent) => {
      const target = e.target as HTMLElement
-     if (!target.closest('.search-container')) {
+     if (!searchContainer.contains(target)) {
        hideResults()
      }
-   })
+   }
+   document.addEventListener('click', onDocumentClick)
+   cleanupFns.push(() => document.removeEventListener('click', onDocumentClick))
 
    // Close search results when scrolling on mobile
-   let scrollTimeout: number
-   window.addEventListener('scroll', () => {
-     clearTimeout(scrollTimeout)
+   let scrollTimeout: number | undefined
+   const onScroll = () => {
+     if (scrollTimeout !== undefined) {
+       window.clearTimeout(scrollTimeout)
+     }
      scrollTimeout = window.setTimeout(() => {
        if (window.innerWidth < 768) {
          hideResults()
        }
      }, 100)
-   }, { passive: true })
+   }
+   window.addEventListener('scroll', onScroll, { passive: true })
+   cleanupFns.push(() => window.removeEventListener('scroll', onScroll))
+
+   // Restore a query from the URL, if present.
+   const initialQuery = new URLSearchParams(window.location.search).get('q')?.trim() || ''
+   if (initialQuery.length >= 2) {
+     searchInput.value = initialQuery
+     searchClear.style.display = 'flex'
+     executeSearch(initialQuery)
+   }
  }
 
- function handleSearch(e: Event) {
-   const query = (e.target as HTMLInputElement).value.trim().toLowerCase()
+ function handleSearch() {
+   const query = searchInput.value.trim()
 
    // Show/hide clear button
    searchClear.style.display = query ? 'flex' : 'none'
+
+   cancelPendingSearch()
+
+   if (!query) {
+     selectedIndex = -1
+     showRecentSearches()
+     return
+   }
 
    if (query.length < 2) {
      hideResults()
      return
    }
 
+   searchTimer = window.setTimeout(() => executeSearch(query), 180)
+ }
+
+ function executeSearch(query: string) {
+   const normalized = query.trim().toLowerCase()
+   if (normalized.length < 2) {
+     return
+   }
+
+   if (posts.length === 0) {
+     displayLoadError()
+     return
+   }
+
    const results = posts.filter((post) => {
-     const titleMatch = post.title.toLowerCase().includes(query)
-     const descMatch = post.description?.toLowerCase().includes(query) || false
-     const tagsMatch = post.tags?.some(tag => tag.toLowerCase().includes(query)) || false
-     return titleMatch || descMatch || tagsMatch
+     const titleMatch = post.title.toLowerCase().includes(normalized)
+     const descMatch = post.description?.toLowerCase().includes(normalized) || false
+     const tagsMatch = post.tags?.some(tag => tag.toLowerCase().includes(normalized)) || false
+     const contentMatch = post.content?.toLowerCase().includes(normalized) || false
+     return titleMatch || descMatch || tagsMatch || contentMatch
    })
 
    displayResults(results, query)
+   syncQueryParam(query)
+ }
+
+ function displayLoadError() {
+   searchResultsContent.innerHTML = `
+     <div class="search-no-results">
+       <p>Search index could not be loaded.</p>
+     </div>
+   `
+   searchResults.style.display = 'block'
+ }
+
+ function createSnippet(text: string, query: string, radius = 80): string {
+   const source = text || ''
+   const index = source.toLowerCase().indexOf(query.toLowerCase())
+   if (index === -1) {
+     return source.slice(0, 160)
+   }
+
+   const start = Math.max(0, index - radius)
+   const end = Math.min(source.length, index + query.length + radius)
+   const prefix = start > 0 ? '…' : ''
+   const suffix = end < source.length ? '…' : ''
+   return `${prefix}${source.slice(start, end)}${suffix}`
+ }
+
+ function formatDate(value: Date | string): string {
+   const date = new Date(value)
+   if (Number.isNaN(date.getTime())) {
+     return ''
+   }
+   return date.toLocaleDateString(undefined, {
+     year: 'numeric',
+     month: 'short',
+     day: 'numeric',
+   })
  }
 
  function displayResults(results: Post[], query: string) {
+   selectedIndex = -1
+   resultItems = []
+   searchResultsContent.replaceChildren()
+
    if (results.length === 0) {
-     searchResultsContent.innerHTML = `
-        <div class="search-no-results">
-          <p>No results found for "${escapeHtml(query)}"</p>
-        </div>
-      `
+     const empty = document.createElement('div')
+     empty.className = 'search-no-results'
+     const text = document.createElement('p')
+     text.textContent = `No results found for "${query}"`
+     empty.appendChild(text)
+     searchResultsContent.appendChild(empty)
    }
- else {
-     searchResultsContent.innerHTML = results
-       .slice(0, 10) // Limit to 10 results
-       .map((post) => {
-         const formattedDate = new Date(post.date).toLocaleDateString()
-         return `
-            <a href="${post.slug}" class="search-result-item">
-              <div class="search-result-title">${highlightText(post.title, query)}</div>
-              ${post.description ? `<div class="search-result-desc">${highlightText(post.description, query)}</div>` : ''}
-              <div class="search-result-meta">
-                <span class="search-result-date">${formattedDate}</span>
-                ${post.tags && post.tags.length > 0 ? `<span class="search-result-tags">${post.tags.slice(0, 3).map(tag => `<span class="tag">${tag}</span>`).join('')}</span>` : ''}
-              </div>
-            </a>
-          `
+   else {
+     const fragment = document.createDocumentFragment()
+     results.slice(0, 10).forEach((post) => {
+       const item = document.createElement('a')
+       item.href = getPostHref(post)
+       item.className = 'search-result-item'
+       item.setAttribute('data-search-result', '')
+
+       const title = document.createElement('div')
+       title.className = 'search-result-title'
+       title.innerHTML = highlightText(post.title, query)
+
+       item.appendChild(title)
+
+       if (post.description) {
+         const description = document.createElement('div')
+         description.className = 'search-result-desc'
+         description.innerHTML = highlightText(post.description, query)
+         item.appendChild(description)
+       }
+       else if (post.content) {
+         const content = document.createElement('div')
+         content.className = 'search-result-desc'
+         content.innerHTML = highlightText(createSnippet(post.content, query), query)
+         item.appendChild(content)
+       }
+
+       const meta = document.createElement('div')
+       meta.className = 'search-result-meta'
+       const date = document.createElement('span')
+       date.className = 'search-result-date'
+       date.textContent = formatDate(post.date)
+       meta.appendChild(date)
+
+       if (post.tags && post.tags.length > 0) {
+         const tags = document.createElement('span')
+         tags.className = 'search-result-tags'
+         post.tags.slice(0, 3).forEach((tag) => {
+           const tagElement = document.createElement('span')
+           tagElement.className = 'tag'
+           tagElement.textContent = tag
+           tags.appendChild(tagElement)
+         })
+         meta.appendChild(tags)
+       }
+       item.appendChild(meta)
+
+       item.addEventListener('mouseenter', () => {
+         const index = resultItems.indexOf(item)
+         if (index !== -1) {
+           setSelectedIndex(index)
+         }
        })
-       .join('')
+       item.addEventListener('click', () => saveRecentSearch(query))
+
+       fragment.appendChild(item)
+       resultItems.push(item)
+     })
+
+     searchResultsContent.appendChild(fragment)
 
      if (results.length > 10) {
-       searchResultsContent.innerHTML += `
-          <div class="search-more-results">
-            <p>+${results.length - 10} more results</p>
-          </div>
-        `
+       const more = document.createElement('div')
+       more.className = 'search-more-results'
+       const text = document.createElement('p')
+       text.textContent = `+${results.length - 10} more results`
+       more.appendChild(text)
+       searchResultsContent.appendChild(more)
      }
    }
 
    searchResults.style.display = 'block'
  }
 
+ function setSelectedIndex(index: number) {
+   if (resultItems.length === 0) {
+     selectedIndex = -1
+     return
+   }
+
+   selectedIndex = (index + resultItems.length) % resultItems.length
+   resultItems.forEach((item, itemIndex) => {
+     item.classList.toggle('search-result-selected', itemIndex === selectedIndex)
+     if (itemIndex === selectedIndex) {
+       item.scrollIntoView({ block: 'nearest' })
+     }
+   })
+ }
+
+ function handleKeydown(event: KeyboardEvent) {
+   if (event.key === 'Escape') {
+     hideResults()
+     searchInput.blur()
+     return
+   }
+
+   if (event.key === 'ArrowDown') {
+     event.preventDefault()
+     if (resultItems.length > 0) {
+       setSelectedIndex(selectedIndex + 1)
+     }
+     return
+   }
+
+   if (event.key === 'ArrowUp') {
+     event.preventDefault()
+     if (resultItems.length > 0) {
+       setSelectedIndex(selectedIndex - 1)
+     }
+     return
+   }
+
+   if (event.key === 'Enter') {
+     const query = searchInput.value.trim()
+     if (query.length < 2) {
+       return
+     }
+
+     if (selectedIndex >= 0 && resultItems[selectedIndex]) {
+       event.preventDefault()
+       saveRecentSearch(query)
+       resultItems[selectedIndex].click()
+     }
+     else {
+       saveRecentSearch(query)
+     }
+   }
+ }
+
  function hideResults() {
    searchResults.style.display = 'none'
+   selectedIndex = -1
  }
 
  function clearSearch() {
+   cancelPendingSearch()
    searchInput.value = ''
    searchClear.style.display = 'none'
    hideResults()
+   syncQueryParam('')
    searchInput.focus()
+ }
+
+ function syncQueryParam(query: string) {
+   const url = new URL(window.location.href)
+   if (query) {
+     url.searchParams.set('q', query)
+   }
+   else {
+     url.searchParams.delete('q')
+   }
+   history.replaceState(history.state, '', url.toString())
  }
 
  function highlightText(text: string, query: string): string {

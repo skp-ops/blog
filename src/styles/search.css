@@ -78,6 +78,26 @@
   --at-apply: 'border-t border-secondary/10';
 }
 
+/* Recent searches */
+.search-recent-header {
+  --at-apply: 'px-4 pt-3 pb-2 text-3 c-secondary/70 font-medium';
+}
+
+.search-recent-list {
+  --at-apply: 'px-2 pb-2 flex flex-col gap-1';
+}
+
+.search-recent-item {
+  --at-apply: 'w-full text-left px-3 py-2 uno-round-border c-secondary transition-colors';
+  --at-apply: 'hover:(bg-secondary/5 c-primary) active:(bg-secondary/8)';
+  --at-apply: 'text-3.25 cursor-pointer';
+}
+
+/* Keyboard-selected search result */
+.search-result-selected {
+  --at-apply: 'bg-secondary/5';
+}
+
 /* Highlight matching text */
 .search-result-item mark {
   --at-apply: 'bg-highlight c-primary font-semibold';
