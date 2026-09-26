@@ -1,0 +1,107 @@
+---
+interface Props {
+  title: string
+  url: string
+}
+
+const { title, url } = Astro.props
+const encodedUrl = encodeURIComponent(url)
+const encodedTitle = encodeURIComponent(title)
+---
+
+<div class="share-buttons">
+  <button type="button" class="share-native" aria-label="Share">
+    <span>Share</span>
+  </button>
+  <a
+    class="share-link"
+    href={`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Share on X"
+  >
+    X
+  </a>
+  <a
+    class="share-link"
+    href={`https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Share on Telegram"
+  >
+    TG
+  </a>
+  <a
+    class="share-link"
+    href={`mailto:?subject=${encodedTitle}&body=${encodedUrl}`}
+    aria-label="Share by email"
+  >
+    Mail
+  </a>
+</div>
+
+<style>
+  .share-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .share-native,
+  .share-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.6rem;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.2);
+    border-radius: 9999px;
+    background: transparent;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.78rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .share-native:hover,
+  .share-link:hover {
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.4);
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+</style>
+
+<script>
+function initShareButton() {
+  const native = document.querySelector('.share-native') as HTMLButtonElement | null
+  if (!native)
+    return
+
+  if (typeof navigator.share === 'function') {
+    native.addEventListener('click', async () => {
+      try {
+        await navigator.share({
+          title: document.title,
+          url: window.location.href,
+        })
+      }
+      catch (error) {
+        if ((error as Error).name !== 'AbortError')
+          console.error('Share failed:', error)
+      }
+    })
+  }
+  else {
+    native.style.display = 'none'
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initShareButton)
+}
+else {
+  initShareButton()
+}
+
+document.addEventListener('astro:after-swap', initShareButton)
+</script>

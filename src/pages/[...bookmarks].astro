@@ -1,0 +1,166 @@
+---
+import { defaultLocale, moreLocales } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+
+export async function getStaticPaths() {
+  type PathItem = {
+    params: { bookmarks: string }
+    props: { lang: string }
+  }
+
+  const paths: PathItem[] = []
+  paths.push({ params: { bookmarks: 'bookmarks/' }, props: { lang: defaultLocale } })
+  moreLocales.forEach((lang: string) => {
+    paths.push({ params: { bookmarks: `${lang}/bookmarks/` }, props: { lang } })
+  })
+
+  return paths
+}
+
+const { lang } = Astro.props
+---
+
+<Layout>
+  <div class="bookmarks-page">
+    <h1 class="bookmarks-title">
+      {lang === 'zh' ? '收藏' : lang === 'ja' ? 'ブックマーク' : 'Bookmarks'}
+    </h1>
+    <p class="bookmarks-desc">
+      {lang === 'zh'
+        ? '你收藏的文章会保存在当前浏览器中。'
+        : lang === 'ja'
+          ? 'ブックマークした記事はこのブラウザに保存されます。'
+          : 'Your saved posts are stored in this browser.'}
+    </p>
+    <div id="bookmarks-list" class="bookmarks-list"></div>
+  </div>
+</Layout>
+
+<style>
+  .bookmarks-page {
+    width: 100%;
+  }
+
+  .bookmarks-title {
+    margin-bottom: 0.75rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  .bookmarks-desc {
+    margin-bottom: 2.5rem;
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  .bookmarks-list {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .bookmark-empty {
+    padding: 3rem 0;
+    text-align: center;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  .bookmark-card {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.14);
+    border-radius: 0.875rem;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.04);
+  }
+
+  .bookmark-link {
+    color: oklch(var(--un-preset-theme-colors-primary));
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .bookmark-link:hover {
+    text-decoration: underline;
+  }
+
+  .bookmark-remove {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    cursor: pointer;
+  }
+
+  .bookmark-remove:hover {
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+</style>
+
+<script>
+const BOOKMARKS_KEY = 'blog-bookmarks'
+
+function getBookmarks(): Array<{ title: string, url: string }> {
+  try {
+    const value = JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]')
+    return Array.isArray(value) ? value : []
+  }
+  catch {
+    return []
+  }
+}
+
+function renderBookmarks() {
+  const list = document.getElementById('bookmarks-list')
+  if (!list)
+    return
+
+  const items = getBookmarks()
+  list.innerHTML = ''
+
+  if (items.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'bookmark-empty'
+    empty.textContent = document.documentElement.lang?.startsWith('zh')
+      ? '还没有收藏文章。'
+      : document.documentElement.lang?.startsWith('ja')
+        ? 'まだブックマークがありません。'
+        : 'No bookmarks yet.'
+    list.appendChild(empty)
+    return
+  }
+
+  items.forEach((item, index) => {
+    const card = document.createElement('div')
+    card.className = 'bookmark-card'
+
+    const link = document.createElement('a')
+    link.className = 'bookmark-link'
+    link.href = item.url
+    link.textContent = item.title
+
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'bookmark-remove'
+    remove.textContent = '×'
+    remove.setAttribute('aria-label', 'Remove bookmark')
+    remove.addEventListener('click', () => {
+      const next = getBookmarks().filter((_, itemIndex) => itemIndex !== index)
+      localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(next))
+      renderBookmarks()
+    })
+
+    card.append(link, remove)
+    list.appendChild(card)
+  })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', renderBookmarks)
+}
+else {
+  renderBookmarks()
+}
+</script>

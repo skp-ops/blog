@@ -1,0 +1,128 @@
+---
+import { defaultLocale, moreLocales } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+import { getSeries } from '@/utils/content'
+
+export async function getStaticPaths() {
+  type PathItem = {
+    params: { series: string }
+    props: { lang: string }
+  }
+
+  const paths: PathItem[] = []
+  paths.push({ params: { series: 'series/' }, props: { lang: defaultLocale } })
+  moreLocales.forEach((lang: string) => {
+    paths.push({ params: { series: `${lang}/series/` }, props: { lang } })
+  })
+
+  return paths
+}
+
+const { lang } = Astro.props
+const allSeries = await getSeries(lang)
+---
+
+<Layout>
+  <div class="series-page">
+    <h1 class="series-title">
+      {lang === 'zh' ? '系列' : lang === 'ja' ? 'シリーズ' : 'Series'}
+    </h1>
+    <p class="series-desc">
+      {lang === 'zh'
+        ? '按主题连续更新的文章合集。'
+        : lang === 'ja'
+          ? 'テーマごとにまとめた記事のコレクション。'
+          : 'Long-form article collections organized by topic.'}
+    </p>
+
+    {allSeries.length > 0
+      ? (
+          <div class="series-grid">
+            {allSeries.map(series => (
+              <a
+                href={lang === defaultLocale
+                  ? `/series/${series.slug}/`
+                  : `/${lang}/series/${series.slug}/`}
+                class="series-card"
+                data-astro-prefetch
+              >
+                <h2 class="series-card-title">{series.title}</h2>
+                <p class="series-card-count">
+                  {series.posts.length}
+                  {lang === 'zh' ? ' 篇' : lang === 'ja' ? ' 記事' : ' posts'}
+                </p>
+              </a>
+            ))}
+          </div>
+        )
+      : (
+          <p class="series-empty">
+            {lang === 'zh' ? '还没有系列文章。' : lang === 'ja' ? 'まだシリーズがありません。' : 'No series yet.'}
+          </p>
+        )}
+  </div>
+</Layout>
+
+<style>
+  .series-page {
+    width: 100%;
+  }
+
+  .series-title {
+    margin-bottom: 0.75rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  .series-desc {
+    margin-bottom: 2.5rem;
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  .series-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .series-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .series-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.25rem 1.35rem;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.14);
+    border-radius: 1rem;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.04);
+    color: oklch(var(--un-preset-theme-colors-primary));
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+
+  .series-card:hover {
+    transform: translateY(-2px);
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.3);
+  }
+
+  .series-card-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+
+  .series-card-count {
+    font-size: 0.8rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  .series-empty {
+    padding: 3rem 0;
+    text-align: center;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+</style>

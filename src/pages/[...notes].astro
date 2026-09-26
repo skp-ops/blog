@@ -1,0 +1,351 @@
+---
+import { getCollection } from 'astro:content'
+import { base, defaultLocale, moreLocales } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+import { renderMarkdownToHtml } from '@/utils/markdown'
+
+const MAX_NOTES = 1000
+const INITIAL_NOTES = 20
+
+export async function getStaticPaths() {
+  type PathItem = {
+    params: { notes: string }
+    props: { lang: string }
+  }
+
+  const paths: PathItem[] = []
+  paths.push({ params: { notes: 'notes/' }, props: { lang: defaultLocale } })
+  moreLocales.forEach((lang: string) => {
+    paths.push({ params: { notes: `${lang}/notes/` }, props: { lang } })
+  })
+
+  return paths
+}
+
+const { lang } = Astro.props
+const allNotes = await getCollection(
+  'notes',
+  ({ data }) => (import.meta.env.DEV || !data.draft)
+    && (data.lang === lang || data.lang === ''),
+)
+
+const sortedNotes = allNotes
+  .sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime())
+  .slice(0, MAX_NOTES)
+
+const initialNotes = sortedNotes.slice(0, INITIAL_NOTES).map((note) => {
+  const date = note.data.date instanceof Date ? note.data.date : new Date(note.data.date)
+  return {
+    id: note.id,
+    title: note.data.title,
+    date,
+    image: note.data.image || '',
+    contentHtml: renderMarkdownToHtml(note.body || ''),
+  }
+})
+
+const totalNotes = Math.min(sortedNotes.length, MAX_NOTES)
+---
+
+<Layout>
+  <div class="notes-page">
+    <h1 class="notes-title">
+      {lang === 'zh' ? '碎语' : lang === 'ja' ? 'ひとりごと' : 'Murmurs'}
+    </h1>
+    <p class="notes-desc">
+      {lang === 'zh'
+        ? '一些不成文章的短句、片段和照片。'
+        : lang === 'ja'
+          ? '記事にする前の短いことばや写真。'
+          : 'Short notes, fragments and photos.'}
+    </p>
+
+    {initialNotes.length > 0
+      ? (
+          <div
+            id="notes-grid"
+            class="notes-grid"
+            data-lang={lang}
+            data-base={base}
+            data-total={totalNotes}
+            data-limit={INITIAL_NOTES}
+          >
+            {initialNotes.map(note => (
+              <article class="note-card" data-note-id={note.id}>
+                {note.image && (
+                  <img
+                    src={note.image}
+                    alt={note.title}
+                    class="note-card-image"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
+                <div class="note-card-body">
+                  <div class="note-card-meta">
+                    <time datetime={note.date.toISOString()}>
+                      {note.date.toLocaleDateString(
+                        lang === 'zh' ? 'zh-CN' : lang === 'ja' ? 'ja-JP' : 'en-US',
+                        { year: 'numeric', month: 'short', day: 'numeric' },
+                      )}
+                    </time>
+                  </div>
+                  <h2 class="note-card-title">{note.title}</h2>
+                  <div class="heti note-card-content" set:html={note.contentHtml} />
+                </div>
+              </article>
+            ))}
+          </div>
+        )
+      : (
+          <p class="notes-empty">
+            {lang === 'zh' ? '还没有碎语。' : lang === 'ja' ? 'まだ投稿がありません。' : 'No notes yet.'}
+          </p>
+        )}
+
+    {totalNotes > 0 && (
+      <div id="notes-sentinel" class="notes-sentinel" aria-hidden="true"></div>
+    )}
+    <div id="notes-status" class="notes-status" role="status" aria-live="polite"></div>
+  </div>
+</Layout>
+
+<style>
+  .notes-page {
+    width: 100%;
+  }
+
+  .notes-title {
+    margin-bottom: 0.75rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  .notes-desc {
+    margin-bottom: 2.5rem;
+    font-size: 0.875rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  .notes-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .note-card {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 420px;
+    border: 1px solid oklch(var(--un-preset-theme-colors-secondary) / 0.14);
+    border-radius: 1rem;
+    background: oklch(var(--un-preset-theme-colors-secondary) / 0.04);
+    box-shadow: 0 8px 30px oklch(var(--un-preset-theme-colors-secondary) / 0.1);
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+
+  .note-card:hover {
+    transform: translateY(-2px);
+    border-color: oklch(var(--un-preset-theme-colors-primary) / 0.25);
+  }
+
+  .note-card-image {
+    display: block;
+    width: 100%;
+    max-height: 18rem;
+    object-fit: cover;
+  }
+
+  .note-card-body {
+    padding: 1.25rem 1.35rem 1.5rem;
+  }
+
+  .note-card-meta {
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+
+  .note-card-title {
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+
+  .note-card-content :global(.post-title),
+  .note-card-content :global(h1) {
+    font-size: 1.25rem;
+  }
+
+  .notes-sentinel {
+    height: 1px;
+  }
+
+  .notes-status {
+    min-height: 2rem;
+    padding: 1rem 0 2rem;
+    text-align: center;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+    font-size: 0.875rem;
+  }
+
+  .notes-empty {
+    padding: 3rem 0;
+    text-align: center;
+    color: oklch(var(--un-preset-theme-colors-secondary));
+  }
+</style>
+
+<script>
+interface NoteItem {
+  id: string
+  title: string
+  date: string
+  image: string
+  contentHtml: string
+}
+
+function createNoteCard(note: NoteItem, lang: string): HTMLElement {
+  const article = document.createElement('article')
+  article.className = 'note-card'
+  article.dataset.noteId = note.id
+
+  if (note.image) {
+    const image = document.createElement('img')
+    image.src = note.image
+    image.alt = note.title
+    image.className = 'note-card-image'
+    image.loading = 'lazy'
+    image.decoding = 'async'
+    article.appendChild(image)
+  }
+
+  const body = document.createElement('div')
+  body.className = 'note-card-body'
+
+  const meta = document.createElement('div')
+  meta.className = 'note-card-meta'
+  const time = document.createElement('time')
+  time.dateTime = note.date
+  time.textContent = new Date(note.date).toLocaleDateString(
+    lang === 'zh' ? 'zh-CN' : lang === 'ja' ? 'ja-JP' : 'en-US',
+    { year: 'numeric', month: 'short', day: 'numeric' },
+  )
+  meta.appendChild(time)
+
+  const title = document.createElement('h2')
+  title.className = 'note-card-title'
+  title.textContent = note.title
+
+  const content = document.createElement('div')
+  content.className = 'heti note-card-content'
+  content.innerHTML = note.contentHtml
+
+  body.append(meta, title, content)
+  article.appendChild(body)
+  return article
+}
+
+function initNotesPage() {
+  const grid = document.getElementById('notes-grid') as HTMLElement | null
+  const sentinel = document.getElementById('notes-sentinel')
+  const status = document.getElementById('notes-status')
+  if (!grid || !sentinel || !status)
+    return
+  const gridEl = grid
+  const sentinelEl = sentinel
+  const statusEl = status
+
+  const lang = gridEl.dataset.lang || 'zh'
+  const basePath = gridEl.dataset.base || ''
+  const total = Number.parseInt(gridEl.dataset.total || '0', 10)
+  const limit = Number.parseInt(gridEl.dataset.limit || '20', 10)
+
+  let loaded = gridEl.querySelectorAll('.note-card').length
+  let loading = false
+  let finished = loaded >= total
+  let observer: IntersectionObserver | null = null
+
+  function setStatus(text: string) {
+    statusEl.textContent = text
+  }
+
+  async function loadNext() {
+    if (loading || finished || loaded >= total)
+      return
+
+    loading = true
+    setStatus(lang === 'zh' ? '加载中…' : lang === 'ja' ? '読み込み中…' : 'Loading…')
+
+    try {
+      const response = await fetch(
+        `${basePath}/api/notes.json?lang=${encodeURIComponent(lang)}&offset=${loaded}&limit=${limit}`,
+      )
+      if (!response.ok)
+        throw new Error(`HTTP ${response.status}`)
+
+      const data = await response.json()
+      const items = Array.isArray(data.items) ? data.items as NoteItem[] : []
+      const fragment = document.createDocumentFragment()
+
+      items.forEach((note) => {
+        fragment.appendChild(createNoteCard(note, lang))
+      })
+      gridEl.appendChild(fragment)
+      loaded += items.length
+
+      if (items.length < limit || loaded >= total)
+        finished = true
+
+      setStatus(finished ? '' : '')
+    }
+    catch (error) {
+      console.error('Failed to load notes:', error)
+      setStatus(lang === 'zh' ? '加载失败，请重试' : lang === 'ja' ? '読み込みに失敗しました' : 'Failed to load.')
+    }
+    finally {
+      loading = false
+      if (!finished && loaded < total) {
+        requestAnimationFrame(loadIfVisible)
+      }
+    }
+  }
+
+  function loadIfVisible() {
+    if (loading || finished || loaded >= total)
+      return
+    const rect = sentinelEl.getBoundingClientRect()
+    if (rect.top < window.innerHeight + 600)
+      loadNext()
+  }
+
+  if (typeof IntersectionObserver !== 'undefined') {
+    observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting)
+          loadNext()
+      })
+    }, { rootMargin: '600px 0px' })
+    observer.observe(sentinelEl)
+  }
+  else {
+    const onScroll = () => loadIfVisible()
+    window.addEventListener('scroll', onScroll, { passive: true })
+  }
+
+  loadIfVisible()
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initNotesPage)
+}
+else {
+  initNotesPage()
+}
+
+document.addEventListener('astro:after-swap', initNotesPage)
+</script>

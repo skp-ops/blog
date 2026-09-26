@@ -1,0 +1,57 @@
+---
+import PostList from '@/components/PostList.astro'
+import { defaultLocale, moreLocales } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+import { getPostsBySeries, getSeries, getSeriesSupportedLangs } from '@/utils/content'
+
+export async function getStaticPaths() {
+  type PathItem = {
+    params: { series_slug: string }
+    props: { slug: string, lang: string }
+  }
+
+  const paths: PathItem[] = []
+
+  const defaultSeries = await getSeries(defaultLocale)
+  defaultSeries.forEach((series) => {
+    paths.push({
+      params: { series_slug: `series/${series.slug}/` },
+      props: { slug: series.slug, lang: defaultLocale },
+    })
+  })
+
+  for (const lang of moreLocales) {
+    const langSeries = await getSeries(lang)
+    langSeries.forEach((series) => {
+      paths.push({
+        params: { series_slug: `${lang}/series/${series.slug}/` },
+        props: { slug: series.slug, lang },
+      })
+    })
+  }
+
+  return paths
+}
+
+const { slug, lang } = Astro.props
+const posts = await getPostsBySeries(slug, lang)
+const supportedLangs = await getSeriesSupportedLangs(slug)
+const seriesTitle = posts[0]?.data.seriesTitle || slug
+---
+
+<Layout supportedLangs={supportedLangs}>
+  <div class="uno-decorative-line" />
+  <h1 class="series-detail-title">{seriesTitle}</h1>
+  <div class="mt-10.5">
+    <PostList posts={posts} lang={lang} />
+  </div>
+</Layout>
+
+<style>
+  .series-detail-title {
+    margin-bottom: 1rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: oklch(var(--un-preset-theme-colors-primary));
+  }
+</style>
