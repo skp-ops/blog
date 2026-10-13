@@ -20,11 +20,11 @@
   "dependencies": {
     "@astrojs/cloudflare": "^12.6.13",
     "@astrojs/mdx": "^4.3.14",
-    "@astrojs/partytown": "^2.1.7",
-    "@astrojs/sitemap": "^3.7.2",
+    "@astrojs/partytown": "^2.1.8",
+    "@astrojs/sitemap": "^3.7.4",
     "@waline/client": "^3.8.0",
     "astro": "^5.17.2",
-    "astro-compress": "^2.4.1",
+    "astro-compress": "^2.4.3",
     "feed": "^5.2.1",
     "katex": "^0.16.45",
     "lite-youtube-embed": "^0.3.4",
@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.4.1",
-    "@astrojs/check": "^0.9.9",
+    "@astrojs/check": "^0.9.10",
     "@lokesh.dhakar/quantize": "^1.4.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.12.2",
@@ -69,7 +69,8 @@
   },
   "pnpm": {
     "overrides": {
-      "canvaskit-wasm": "0.39.1"
+      "canvaskit-wasm": "0.39.1",
+      "vscode-jsonrpc": "8.2.0"
     }
   },
   "simple-git-hooks": {
