@@ -69,7 +69,8 @@
   },
   "pnpm": {
     "overrides": {
-      "canvaskit-wasm": "0.39.1"
+      "canvaskit-wasm": "0.39.1",
+      "vscode-jsonrpc": "8.2.0"
     }
   },
   "simple-git-hooks": {
