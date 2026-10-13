@@ -6,7 +6,7 @@
   "repository": "https://github.com/radishzzz/astro-theme-retypeset",
   "scripts": {
     "dev": "astro check && astro dev",
-    "build": "astro check && astro build && pnpm apply-lqip",
+    "build": "astro check && astro build && tsx scripts/apply-lqip.ts",
     "preview": "astro preview",
     "astro": "astro",
     "lint": "eslint .",
@@ -50,6 +50,7 @@
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^24.19.1",
     "@types/sanitize-html": "^2.16.2",
+    "@unocss/astro": "66.10.5",
     "@unocss/eslint-plugin": "66.10.5",
     "@unocss/preset-attributify": "66.10.5",
     "@unocss/reset": "66.10.5",
