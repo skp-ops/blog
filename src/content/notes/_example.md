@@ -5,7 +5,8 @@ description: 这是一个示例。
 image: /gallery/placeholder.svg
 tags:
   - demo
-draft: true
+draft: false
+lang: ""
 ---
 
 这是一条示例碎语。你可以在这里写一段文字，也可以配一张图片。
