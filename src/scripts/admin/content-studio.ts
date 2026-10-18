@@ -62,7 +62,7 @@ const POSTS_ROOT = 'src/content/posts'
 const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
 const AUTO_SYNC_INTERVAL = 60_000
-const LIST_PAGE_SIZE = 24
+const LIST_PAGE_SIZE = 16
 const EDITOR_VIEW_KEY = 'kun-blog-content-studio-view'
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/avif': 'avif',
