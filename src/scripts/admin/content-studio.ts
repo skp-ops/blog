@@ -62,7 +62,7 @@ const POSTS_ROOT = 'src/content/posts'
 const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
 const AUTO_SYNC_INTERVAL = 60_000
-const LIST_PAGE_SIZE = 80
+const LIST_PAGE_SIZE = 24
 const EDITOR_VIEW_KEY = 'kun-blog-content-studio-view'
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/avif': 'avif',
@@ -237,6 +237,7 @@ function mountContentStudio(root: HTMLElement) {
   const createButton = getById<HTMLButtonElement>('studio-create')
   const searchInput = getById<HTMLInputElement>('studio-search')
   const listElement = getById<HTMLElement>('studio-list')
+  const paginationElement = getById<HTMLElement>('studio-list-pagination')
   const listLabel = getById<HTMLElement>('studio-list-label')
   const resultCount = getById<HTMLElement>('studio-result-count')
   const syncedAt = getById<HTMLElement>('studio-synced-at')
@@ -269,7 +270,7 @@ function mountContentStudio(root: HTMLElement) {
   let selectedKey: string | null = null
   let editorFormDirty = false
   let loading = false
-  let listLimit = LIST_PAGE_SIZE
+  let listPage = 0
   let previewTimer = 0
   let toastTimer = 0
   const pendingAssets = new Map<string, PendingAsset>()
@@ -504,18 +505,23 @@ function mountContentStudio(root: HTMLElement) {
       : activeFilter === 'changed'
         ? '有改动'
         : '全部'
-    const visibleItems = items.slice(0, listLimit)
+    const totalPages = Math.max(1, Math.ceil(items.length / LIST_PAGE_SIZE))
+    listPage = Math.min(listPage, totalPages - 1)
+    const visibleItems = items.slice(
+      listPage * LIST_PAGE_SIZE,
+      (listPage + 1) * LIST_PAGE_SIZE,
+    )
     listLabel.textContent = `${filterLabel}${collectionLabels[activeCollection]}`
-    resultCount.textContent = items.length > visibleItems.length
-      ? `${visibleItems.length} / ${items.length} 条`
-      : `${items.length} 条`
+    resultCount.textContent = `${items.length} 条`
     listElement.replaceChildren()
+    paginationElement.replaceChildren()
 
     if (!items.length) {
       const empty = document.createElement('div')
       empty.className = 'studio-list-empty'
       empty.textContent = query ? '没有匹配的内容。' : '这里还没有内容，点击右上角新建。'
       listElement.appendChild(empty)
+      paginationElement.hidden = true
       return
     }
 
@@ -580,17 +586,39 @@ function mountContentStudio(root: HTMLElement) {
       listElement.appendChild(button)
     }
 
-    if (items.length > visibleItems.length) {
-      const more = document.createElement('button')
-      more.type = 'button'
-      more.className = 'studio-list-more'
-      more.textContent = `再显示 ${Math.min(LIST_PAGE_SIZE, items.length - visibleItems.length)} 条`
-      more.addEventListener('click', () => {
-        listLimit += LIST_PAGE_SIZE
-        renderList()
-      })
-      listElement.appendChild(more)
+    if (totalPages <= 1) {
+      paginationElement.hidden = true
+      return
     }
+
+    paginationElement.hidden = false
+    const previous = document.createElement('button')
+    previous.type = 'button'
+    previous.className = 'studio-page-button'
+    previous.textContent = '上一页'
+    previous.disabled = listPage === 0
+    previous.addEventListener('click', () => {
+      listPage = Math.max(0, listPage - 1)
+      renderList()
+      listElement.scrollTop = 0
+    })
+
+    const status = document.createElement('span')
+    status.className = 'studio-page-status'
+    status.textContent = `${listPage + 1} / ${totalPages}`
+
+    const next = document.createElement('button')
+    next.type = 'button'
+    next.className = 'studio-page-button'
+    next.textContent = '下一页'
+    next.disabled = listPage >= totalPages - 1
+    next.addEventListener('click', () => {
+      listPage = Math.min(totalPages - 1, listPage + 1)
+      renderList()
+      listElement.scrollTop = 0
+    })
+
+    paginationElement.append(previous, status, next)
   }
 
   function languageOptions() {
@@ -904,12 +932,17 @@ function mountContentStudio(root: HTMLElement) {
     copy.appendChild(name)
 
     const status = document.createElement('span')
-    status.textContent = pending ? '新图片，提交时一并写入' : '本地图片路径'
+    status.textContent = pending
+      ? `待提交：${pending.path}`
+      : value.startsWith('/')
+        ? `项目路径：public${value}`
+        : '外部图片地址'
     if (pending)
       status.className = 'studio-pending-asset'
     copy.appendChild(status)
 
     container.append(image, copy)
+    container.title = pending?.path || value
     container.hidden = false
   }
 
@@ -1561,6 +1594,7 @@ function mountContentStudio(root: HTMLElement) {
     }
 
     workspace.items[activeCollection].unshift(item)
+    listPage = 0
     selectedKey = item.key
     editorFormDirty = false
     updateCounts()
@@ -1721,7 +1755,7 @@ function mountContentStudio(root: HTMLElement) {
         loadedAt: new Date(),
       }
       pendingAssets.clear()
-      listLimit = LIST_PAGE_SIZE
+      listPage = 0
       selectedKey = previousSelection && findItem(previousSelection)
         ? previousSelection
         : null
@@ -1913,7 +1947,7 @@ function mountContentStudio(root: HTMLElement) {
       activeCollection = collection
       selectedKey = null
       editorFormDirty = false
-      listLimit = LIST_PAGE_SIZE
+      listPage = 0
       searchInput.value = ''
       updateTabs()
       renderList()
@@ -1928,14 +1962,14 @@ function mountContentStudio(root: HTMLElement) {
       if (filter !== 'all' && filter !== 'draft' && filter !== 'changed')
         return
       activeFilter = filter
-      listLimit = LIST_PAGE_SIZE
+      listPage = 0
       updateFilters()
       renderList()
     })
   })
 
   searchInput.addEventListener('input', () => {
-    listLimit = LIST_PAGE_SIZE
+    listPage = 0
     renderList()
   })
   createButton.addEventListener('click', createItem)

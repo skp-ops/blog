@@ -91,6 +91,7 @@ const localizedLocales = locales.map(locale => ({
       </div>
 
       <div id="studio-list" class="studio-list" role="tabpanel" aria-live="polite"></div>
+      <div id="studio-list-pagination" class="studio-list-pagination" hidden></div>
 
       <div class="studio-sidebar-footer">
         <span id="studio-synced-at">尚未同步</span>
@@ -347,14 +348,17 @@ const localizedLocales = locales.map(locale => ({
     display: grid;
     grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
     width: min(100%, 96rem);
-    min-height: calc(100dvh - 4.75rem);
+    height: calc(100dvh - 4.75rem);
     margin: 0 auto;
+    overflow: hidden;
   }
 
   .studio-sidebar {
     display: flex;
+    height: 100%;
     min-height: 0;
     flex-direction: column;
+    overflow: hidden;
     padding: 1.55rem 1.1rem 1rem;
     border-right: 1px solid var(--studio-line);
     background: oklch(var(--un-preset-theme-colors-background) / 0.34);
@@ -533,7 +537,7 @@ const localizedLocales = locales.map(locale => ({
 
   .studio-list {
     display: flex;
-    min-height: 10rem;
+    min-height: 0;
     flex: 1;
     flex-direction: column;
     gap: 0.4rem;
@@ -671,22 +675,43 @@ const localizedLocales = locales.map(locale => ({
     text-align: center;
   }
 
-  .studio-list-more {
-    width: 100%;
-    margin-top: 0.25rem;
-    padding: 0.65rem;
-    border: 1px dashed var(--studio-line-strong);
-    border-radius: 0.75rem;
-    color: var(--studio-secondary);
-    background: transparent;
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.7rem;
+  .studio-list-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.65rem 0.2rem 0.25rem;
+    border-top: 1px solid var(--studio-line);
   }
 
-  .studio-list-more:hover {
-    color: var(--studio-primary);
+  .studio-page-button {
+    min-width: 4rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--studio-line);
+    border-radius: 0.58rem;
+    color: var(--studio-secondary);
     background: var(--studio-surface);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.64rem;
+    font-weight: 650;
+  }
+
+  .studio-page-button:hover:not(:disabled) {
+    color: var(--studio-primary);
+    border-color: var(--studio-line-strong);
+  }
+
+  .studio-page-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+  }
+
+  .studio-page-status {
+    color: var(--studio-secondary);
+    font-family: var(--font-mono), monospace;
+    font-size: 0.62rem;
+    white-space: nowrap;
   }
 
   .studio-sidebar-footer {
@@ -728,6 +753,8 @@ const localizedLocales = locales.map(locale => ({
 
   .studio-main {
     min-width: 0;
+    height: 100%;
+    overflow-y: auto;
     padding: clamp(1.3rem, 3.2vw, 3.5rem);
   }
 
@@ -1322,6 +1349,10 @@ const localizedLocales = locales.map(locale => ({
     white-space: nowrap;
   }
 
+  .studio-media-preview-copy span {
+    overflow-wrap: anywhere;
+  }
+
   .studio-pending-asset {
     color: #a16207;
     font-weight: 700;
@@ -1642,10 +1673,15 @@ const localizedLocales = locales.map(locale => ({
 
     .studio-layout {
       grid-template-columns: 1fr;
+      height: auto;
+      min-height: calc(100dvh - 4.75rem);
+      overflow: visible;
     }
 
     .studio-sidebar {
       position: relative;
+      height: auto;
+      overflow: visible;
       border-right: 0;
       border-bottom: 1px solid var(--studio-line);
     }
@@ -1655,6 +1691,8 @@ const localizedLocales = locales.map(locale => ({
     }
 
     .studio-main {
+      height: auto;
+      overflow: visible;
       padding: 1.5rem 1rem 3rem;
     }
 
