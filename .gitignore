@@ -13,6 +13,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# content studio temporary files
+*.studio-*.tmp
+
 # environment variables
 .env
 .env.production

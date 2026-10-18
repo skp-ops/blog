@@ -1,16 +1,6 @@
-import type { FileChange, GitHubConfig, GitTreeEntry } from './github'
+import type { StudioFileChange, StudioSnapshot } from '@/types/studio'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
-import {
-  commitFiles,
-
-  getBranchHead,
-  getBranchSnapshot,
-  getContentTree,
-  getRepositoryInfo,
-  getTextFiles,
-  GitHubApiError,
-  parseRepository,
-} from './github'
+import { commitStudioChanges, getStudioSnapshot, StudioApiError } from './studio-client'
 
 type CollectionKey = 'posts' | 'notes' | 'photos'
 
@@ -39,17 +29,13 @@ interface BaselineItem {
 
 interface Workspace {
   headSha: string
-  treeSha: string
+  revision: string
+  branch: string
+  remote: string
+  dirty: boolean
   items: Record<CollectionKey, ContentItem[]>
   baseline: Map<string, BaselineItem>
-  photosBaselineRaw: string
   loadedAt: Date
-}
-
-interface StudioSettings {
-  repo: string
-  branch: string
-  token: string
 }
 
 interface ChangeRow {
@@ -59,15 +45,13 @@ interface ChangeRow {
 }
 
 interface ComputedChanges {
-  files: FileChange[]
+  files: StudioFileChange[]
   rows: ChangeRow[]
 }
 
 const POSTS_ROOT = 'src/content/posts'
 const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
-const SETTINGS_KEY = 'kun-blog-content-studio-settings'
-const TOKEN_KEY = 'kun-blog-content-studio-token'
 const AUTO_SYNC_INTERVAL = 60_000
 
 const collectionLabels: Record<CollectionKey, string> = {
@@ -199,25 +183,19 @@ function isCollectionKey(value: string | undefined): value is CollectionKey {
   return value === 'posts' || value === 'notes' || value === 'photos'
 }
 
-function gitErrorMessage(error: unknown) {
-  if (error instanceof GitHubApiError) {
-    if (error.status === 401)
-      return 'GitHub Token 无效或已过期，请在 Git 设置中更新。'
-    if (error.status === 403 && error.remaining === 0) {
-      const reset = error.resetAt
-        ? `配额将在 ${error.resetAt.toLocaleTimeString('zh-CN')} 重置。`
-        : ''
-      return `GitHub API 配额已用完。${reset}`
-    }
+function studioErrorMessage(error: unknown) {
+  if (error instanceof StudioApiError) {
+    if (error.status === 403)
+      return '内容服务只允许从本机 Content Studio 访问。'
+    if (error.status === 409)
+      return `工作区已变化：${error.message}`
     if (error.status === 404)
-      return '找不到仓库或分支，或者当前 Token 没有读取权限。'
-    if (error.status === 409 || error.status === 422)
-      return `Git 写入冲突：${error.message}`
-    return `GitHub API：${error.message}`
+      return '本地内容服务不可用，请重新运行 pnpm studio。'
+    return error.message
   }
 
   if (error instanceof TypeError)
-    return '无法连接 GitHub，请检查网络后重试。'
+    return '无法连接本地内容服务，请确认 pnpm studio 仍在运行。'
 
   return error instanceof Error ? error.message : String(error)
 }
@@ -225,14 +203,11 @@ function gitErrorMessage(error: unknown) {
 function mountContentStudio(root: HTMLElement) {
   document.title = `Content Studio | ${root.dataset.siteTitle || 'Blog'}`
   const locales = JSON.parse(root.dataset.locales || '[]') as LocaleOption[]
-  const defaultRepo = root.dataset.repo || ''
-  const defaultBranch = root.dataset.branch || 'master'
 
   const liveDot = getById<HTMLElement>('studio-live-dot')
   const connectionLabel = getById<HTMLElement>('studio-connection-label')
   const branchLabel = getById<HTMLElement>('studio-branch-label')
   const syncButton = getById<HTMLButtonElement>('studio-sync')
-  const settingsButton = getById<HTMLButtonElement>('studio-settings')
   const commitButton = getById<HTMLButtonElement>('studio-commit')
   const changeCount = getById<HTMLElement>('studio-change-count')
   const createButton = getById<HTMLButtonElement>('studio-create')
@@ -246,16 +221,6 @@ function mountContentStudio(root: HTMLElement) {
   const editorElement = getById<HTMLElement>('studio-editor')
   const toastElement = getById<HTMLElement>('studio-toast')
   const tabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.studio-tab'))
-
-  const settingsDialog = getById<HTMLDialogElement>('studio-settings-dialog')
-  const settingsForm = getById<HTMLFormElement>('studio-settings-form')
-  const settingRepo = getById<HTMLInputElement>('studio-setting-repo')
-  const settingBranch = getById<HTMLInputElement>('studio-setting-branch')
-  const settingToken = getById<HTMLInputElement>('studio-setting-token')
-  const settingsResult = getById<HTMLElement>('studio-settings-result')
-  const saveSettingsButton = getById<HTMLButtonElement>('studio-save-settings')
-  const clearTokenButton = getById<HTMLButtonElement>('studio-clear-token')
-  const toggleTokenButton = getById<HTMLButtonElement>('studio-toggle-token')
 
   const commitDialog = getById<HTMLDialogElement>('studio-commit-dialog')
   const commitMessage = getById<HTMLInputElement>('studio-commit-message')
@@ -272,50 +237,12 @@ function mountContentStudio(root: HTMLElement) {
     photos: getById<HTMLElement>('studio-count-photos'),
   }
 
-  let settings = readSettings()
   let workspace: Workspace | null = null
   let activeCollection: CollectionKey = 'posts'
   let selectedKey: string | null = null
   let editorFormDirty = false
   let loading = false
   let toastTimer = 0
-
-  function readSettings(): StudioSettings {
-    let stored: Partial<StudioSettings> = {}
-    try {
-      stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')
-    }
-    catch {
-      stored = {}
-    }
-
-    return {
-      repo: String(stored.repo || defaultRepo),
-      branch: String(stored.branch || defaultBranch),
-      token: sessionStorage.getItem(TOKEN_KEY) || '',
-    }
-  }
-
-  function persistSettings() {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-      repo: settings.repo,
-      branch: settings.branch,
-    }))
-
-    if (settings.token)
-      sessionStorage.setItem(TOKEN_KEY, settings.token)
-    else
-      sessionStorage.removeItem(TOKEN_KEY)
-  }
-
-  function gitConfig(): GitHubConfig {
-    const repo = parseRepository(settings.repo)
-    return {
-      ...repo,
-      branch: settings.branch,
-      token: settings.token,
-    }
-  }
 
   function setConnection(mode: 'loading' | 'live' | 'error', text: string) {
     liveDot.className = 'studio-live-dot'
@@ -324,7 +251,7 @@ function mountContentStudio(root: HTMLElement) {
     if (mode === 'error')
       liveDot.classList.add('is-error')
     connectionLabel.textContent = text
-    branchLabel.textContent = settings.branch ? `⎇ ${settings.branch}` : ''
+    branchLabel.textContent = workspace?.branch ? `⎇ ${workspace.branch}` : ''
   }
 
   function showToast(message: string, isError = false) {
@@ -350,7 +277,7 @@ function mountContentStudio(root: HTMLElement) {
   }
 
   function computeChanges(): ComputedChanges {
-    const files: FileChange[] = []
+    const files: StudioFileChange[] = []
     const rows: ChangeRow[] = []
 
     if (!workspace)
@@ -484,7 +411,7 @@ function mountContentStudio(root: HTMLElement) {
   function renderList() {
     if (!workspace) {
       listElement.innerHTML = `
-        <div class="studio-list-empty">正在从 GitHub 读取内容…</div>
+        <div class="studio-list-empty">正在读取本地内容…</div>
       `
       resultCount.textContent = '0 条'
       return
@@ -1091,7 +1018,7 @@ function mountContentStudio(root: HTMLElement) {
     updateActionState()
     if (workspace) {
       syncedAt.textContent = formatSyncTime(workspace.loadedAt)
-      branchLabel.textContent = `⎇ ${settings.branch}`
+      branchLabel.textContent = `⎇ ${workspace.branch}`
     }
   }
 
@@ -1112,16 +1039,11 @@ function mountContentStudio(root: HTMLElement) {
     if (loading)
       return
 
-    if (!settings.repo || !settings.branch) {
-      openSettings()
-      return
-    }
-
     const previousSelection = options.preserveSelection ? selectedKey : null
     loading = true
     syncButton.disabled = true
     createButton.disabled = true
-    setConnection('loading', '正在同步 GitHub 内容')
+    setConnection('loading', '正在读取本地工作区')
 
     if (!workspace) {
       listElement.innerHTML = `
@@ -1130,43 +1052,30 @@ function mountContentStudio(root: HTMLElement) {
     }
 
     try {
-      const config = gitConfig()
-      const branchSnapshot = await getBranchSnapshot(config)
+      const snapshot: StudioSnapshot = await getStudioSnapshot()
 
       if (
         workspace
         && options.silent
         && !options.force
-        && workspace.treeSha === branchSnapshot.treeSha
+        && workspace.revision === snapshot.revision
       ) {
-        workspace.headSha = branchSnapshot.headSha
+        workspace.headSha = snapshot.headSha
+        workspace.branch = snapshot.branch
+        workspace.remote = snapshot.remote
+        workspace.dirty = snapshot.dirty
         workspace.loadedAt = new Date()
         syncedAt.textContent = formatSyncTime(workspace.loadedAt)
-        setConnection(
-          'live',
-          settings.token ? `${settings.repo} · 已连接` : `${settings.repo} · 匿名只读`,
-        )
+        branchLabel.textContent = `⎇ ${workspace.branch}`
+        setConnection('live', workspace.dirty ? '本地工作区 · 已有未提交改动' : '本地工作区 · 已同步')
         return
       }
 
-      const tree = await getContentTree(config, branchSnapshot.treeSha)
-      const markdownEntries = tree.entries.filter((entry): entry is GitTreeEntry =>
-        entry.type === 'blob'
-        && (
-          /^src\/content\/posts\/.+\.(?:md|mdx)$/i.test(entry.path)
-          || /^src\/content\/notes\/.+\.(?:md|mdx)$/i.test(entry.path)
-        ),
+      const markdownEntries = snapshot.files.filter(file =>
+        /^src\/content\/posts\/.+\.(?:md|mdx)$/i.test(file.path)
+        || /^src\/content\/notes\/.+\.(?:md|mdx)$/i.test(file.path),
       )
-      const photosEntry = tree.entries.find(entry => entry.type === 'blob' && entry.path === PHOTOS_PATH)
-      if (!photosEntry)
-        throw new Error(`仓库中找不到 ${PHOTOS_PATH}`)
-
-      const files = await getTextFiles(
-        config,
-        [...markdownEntries, photosEntry],
-        branchSnapshot.headSha,
-      )
-      const fileMap = new Map(files.map(file => [file.path, file]))
+      const fileMap = new Map(snapshot.files.map(file => [file.path, file]))
       const warnings: string[] = []
       const items: Record<CollectionKey, ContentItem[]> = {
         posts: [],
@@ -1174,17 +1083,13 @@ function mountContentStudio(root: HTMLElement) {
         photos: [],
       }
 
-      for (const entry of markdownEntries) {
-        const file = fileMap.get(entry.path)
-        if (!file)
-          continue
-
-        const collection = entry.path.startsWith(POSTS_ROOT) ? 'posts' : 'notes'
+      for (const file of markdownEntries) {
+        const collection = file.path.startsWith(POSTS_ROOT) ? 'posts' : 'notes'
         try {
-          items[collection].push(parseMarkdown(file.content, entry.path, collection))
+          items[collection].push(parseMarkdown(file.content, file.path, collection))
         }
         catch (error) {
-          warnings.push(`${entry.path}: ${error instanceof Error ? error.message : String(error)}`)
+          warnings.push(`${file.path}: ${error instanceof Error ? error.message : String(error)}`)
         }
       }
 
@@ -1240,11 +1145,13 @@ function mountContentStudio(root: HTMLElement) {
       }
 
       workspace = {
-        headSha: branchSnapshot.headSha,
-        treeSha: tree.treeSha,
+        headSha: snapshot.headSha,
+        revision: snapshot.revision,
+        branch: snapshot.branch,
+        remote: snapshot.remote,
+        dirty: snapshot.dirty,
         items,
         baseline,
-        photosBaselineRaw: photosFile.content,
         loadedAt: new Date(),
       }
       selectedKey = previousSelection && findItem(previousSelection)
@@ -1252,19 +1159,16 @@ function mountContentStudio(root: HTMLElement) {
         : null
       editorFormDirty = false
       renderEverything()
-      setConnection(
-        'live',
-        settings.token ? `${settings.repo} · 已连接` : `${settings.repo} · 匿名只读`,
-      )
+      setConnection('live', workspace.dirty ? '本地工作区 · 已有未提交改动' : '本地工作区 · 已同步')
       if (warnings.length)
         showToast(`已同步，${warnings.length} 个 Markdown 文件未能解析：${warnings[0]}`, true)
     }
     catch (error) {
       setConnection('error', '同步失败')
-      showToast(gitErrorMessage(error), true)
+      showToast(studioErrorMessage(error), true)
       if (!workspace) {
         listElement.innerHTML = `
-          <div class="studio-list-empty">读取失败，请检查 Git 设置后重试。</div>
+          <div class="studio-list-empty">读取失败，请确认 pnpm studio 正在运行。</div>
         `
       }
       else {
@@ -1279,22 +1183,6 @@ function mountContentStudio(root: HTMLElement) {
     }
   }
 
-  function setSettingsResult(message: string, type: 'error' | 'success' | '' = '') {
-    settingsResult.textContent = message
-    settingsResult.classList.toggle('is-error', type === 'error')
-    settingsResult.classList.toggle('is-success', type === 'success')
-  }
-
-  function openSettings(message = '') {
-    settingRepo.value = settings.repo
-    settingBranch.value = settings.branch
-    settingToken.value = settings.token
-    setSettingsResult(message, message ? 'error' : '')
-    if (!settingsDialog.open)
-      settingsDialog.showModal()
-    window.setTimeout(() => settingRepo.focus(), 0)
-  }
-
   function openCommitDialog() {
     if (!workspace) {
       showToast('内容尚未同步完成。', true)
@@ -1304,11 +1192,6 @@ function mountContentStudio(root: HTMLElement) {
     const changes = computeChanges()
     if (!changes.files.length) {
       showToast('当前没有需要提交的修改。')
-      return
-    }
-
-    if (!settings.token) {
-      openSettings('提交到 Git 需要填写具有 Contents: Read and write 权限的 Token。')
       return
     }
 
@@ -1333,8 +1216,8 @@ function mountContentStudio(root: HTMLElement) {
 
     commitFileCount.textContent = `${changes.files.length} 个文件`
     commitMessage.value = 'content: update blog content'
-    commitHint.textContent = `将直接把 ${changes.files.length} 个文件变更写入远端分支。提交成功后，现有部署流程会继续发布这些内容。`
-    commitTarget.textContent = `${settings.repo} · ${settings.branch} · ${workspace.headSha.slice(0, 7)}`
+    commitHint.textContent = `将把 ${changes.files.length} 个文件写入本地工作区，创建一次 Git 提交，并尝试推送到远端。`
+    commitTarget.textContent = `${workspace.branch} · ${workspace.headSha.slice(0, 7)}`
     commitResult.hidden = true
     commitResult.replaceChildren()
     commitConfirm.disabled = false
@@ -1365,26 +1248,31 @@ function mountContentStudio(root: HTMLElement) {
     commitResult.hidden = true
 
     try {
-      const result = await commitFiles(
-        gitConfig(),
-        workspace.headSha,
+      const result = await commitStudioChanges({
+        expectedHeadSha: workspace.headSha,
+        expectedRevision: workspace.revision,
         message,
-        changes.files,
-      )
+        changes: changes.files,
+      })
 
       commitResult.replaceChildren()
       const heading = document.createElement('strong')
-      heading.textContent = '提交成功'
+      heading.textContent = result.pushed ? '提交已创建并推送' : '提交已创建，推送失败'
       const details = document.createElement('p')
-      details.textContent = `已提交 ${changes.files.length} 个文件，继续沿用仓库原有的 Git 部署流程。`
-      const link = document.createElement('a')
-      link.href = result.url
-      link.target = '_blank'
-      link.rel = 'noopener noreferrer'
-      link.textContent = `查看 commit ${result.sha.slice(0, 7)}`
-      commitResult.append(heading, details, link)
+      details.textContent = result.pushed
+        ? `已提交 ${changes.files.length} 个文件并推送，继续沿用仓库原有的部署流程。`
+        : result.pushError || '提交已写入本地 Git，但尚未推送到远端。'
+      commitResult.append(heading, details)
+      if (result.url) {
+        const link = document.createElement('a')
+        link.href = result.url
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.textContent = `查看 commit ${result.sha.slice(0, 7)}`
+        commitResult.appendChild(link)
+      }
       commitResult.hidden = false
-      showToast('Git 提交已创建。')
+      showToast(result.pushed ? 'Git 提交已创建并推送。' : 'Git 提交已创建，但推送失败。', !result.pushed)
 
       try {
         await loadContent({ force: true, preserveSelection: true, silent: true })
@@ -1398,10 +1286,10 @@ function mountContentStudio(root: HTMLElement) {
       const heading = document.createElement('strong')
       heading.textContent = '提交失败'
       const details = document.createElement('p')
-      details.textContent = gitErrorMessage(error)
+      details.textContent = studioErrorMessage(error)
       commitResult.append(heading, details)
       commitResult.hidden = false
-      showToast(gitErrorMessage(error), true)
+      showToast(studioErrorMessage(error), true)
     }
     finally {
       commitConfirm.disabled = false
@@ -1428,7 +1316,7 @@ function mountContentStudio(root: HTMLElement) {
       return
 
     // eslint-disable-next-line no-alert -- discarding edits needs explicit confirmation
-    if (!window.confirm('确定放弃当前所有未提交修改吗？此操作不会影响 GitHub 仓库。'))
+    if (!window.confirm('确定放弃当前所有未提交修改吗？此操作只会重新读取本地文件。'))
       return
 
     editorFormDirty = false
@@ -1459,68 +1347,8 @@ function mountContentStudio(root: HTMLElement) {
   createButton.addEventListener('click', createItem)
   syncButton.addEventListener('click', manualSync)
   discardButton.addEventListener('click', discardChanges)
-  settingsButton.addEventListener('click', () => openSettings())
   commitButton.addEventListener('click', openCommitDialog)
   commitConfirm.addEventListener('click', submitCommit)
-
-  toggleTokenButton.addEventListener('click', () => {
-    const visible = settingToken.type === 'text'
-    settingToken.type = visible ? 'password' : 'text'
-    toggleTokenButton.textContent = visible ? '显示' : '隐藏'
-  })
-
-  clearTokenButton.addEventListener('click', () => {
-    settingToken.value = ''
-    settings.token = ''
-    persistSettings()
-    setSettingsResult('Token 已从当前会话中清除。', 'success')
-  })
-
-  settingsForm.addEventListener('submit', async (event) => {
-    event.preventDefault()
-    saveSettingsButton.disabled = true
-    saveSettingsButton.textContent = '正在检查…'
-    setSettingsResult('')
-
-    try {
-      const repo = parseRepository(settingRepo.value)
-      const branch = settingBranch.value.trim()
-      if (!branch)
-        throw new Error('分支不能为空。')
-
-      const nextSettings: StudioSettings = {
-        repo: `${repo.owner}/${repo.repo}`,
-        branch,
-        token: settingToken.value.trim(),
-      }
-      const nextConfig: GitHubConfig = {
-        ...repo,
-        branch,
-        token: nextSettings.token,
-      }
-
-      const [repository] = await Promise.all([
-        getRepositoryInfo(nextConfig),
-        getBranchHead(nextConfig),
-      ])
-
-      settings = nextSettings
-      persistSettings()
-      setSettingsResult(
-        `连接成功：${repository.fullName} / ${branch}${nextSettings.token ? '' : '（匿名只读）'}`,
-        'success',
-      )
-      settingsDialog.close()
-      await loadContent({ force: true, preserveSelection: true })
-    }
-    catch (error) {
-      setSettingsResult(gitErrorMessage(error), 'error')
-    }
-    finally {
-      saveSettingsButton.disabled = false
-      saveSettingsButton.textContent = '保存并同步'
-    }
-  })
 
   for (const closeButton of Array.from(document.querySelectorAll<HTMLElement>('[data-close-dialog]'))) {
     closeButton.addEventListener('click', () => {
@@ -1528,7 +1356,7 @@ function mountContentStudio(root: HTMLElement) {
     })
   }
 
-  for (const dialog of [settingsDialog, commitDialog]) {
+  for (const dialog of [commitDialog]) {
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog)
         dialog.close()
@@ -1548,7 +1376,6 @@ function mountContentStudio(root: HTMLElement) {
       || !workspace
       || computeChanges().files.length
       || editorFormDirty
-      || settingsDialog.open
       || commitDialog.open
     ) {
       return
@@ -1557,7 +1384,7 @@ function mountContentStudio(root: HTMLElement) {
   }, AUTO_SYNC_INTERVAL)
 
   renderEverything()
-  setConnection('loading', settings.repo ? '准备同步仓库内容' : '尚未配置仓库')
+  setConnection('loading', '准备读取本地内容')
   void loadContent()
 }
 

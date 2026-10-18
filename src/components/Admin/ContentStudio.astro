@@ -1,14 +1,12 @@
 ---
 interface Props {
-  repo: string
-  branch: string
   base: string
   locales: string[]
   defaultLocale: string
   siteTitle: string
 }
 
-const { repo, branch, base, locales, defaultLocale, siteTitle } = Astro.props
+const { base, locales, defaultLocale, siteTitle } = Astro.props
 const localizedLocales = locales.map(locale => ({
   value: locale,
   label: locale === defaultLocale ? `${locale}（默认）` : locale,
@@ -18,14 +16,12 @@ const localizedLocales = locales.map(locale => ({
 <div
   id="content-studio"
   class="content-studio"
-  data-repo={repo}
-  data-branch={branch}
   data-base={base}
   data-locales={JSON.stringify(localizedLocales)}
   data-site-title={siteTitle}
 >
   <header class="studio-topbar">
-    <a class="studio-brand" href={`${base}/`} aria-label="返回博客首页">
+    <a class="studio-brand" href={`${base}/`} aria-label="返回博客首页" data-astro-prefetch="false">
       <span class="studio-brand-mark" aria-hidden="true">K</span>
       <span class="studio-brand-copy">
         <strong>Content Studio</strong>
@@ -42,9 +38,6 @@ const localizedLocales = locales.map(locale => ({
     <div class="studio-topbar-actions">
       <button id="studio-sync" class="studio-button studio-button-quiet" type="button">
         刷新
-      </button>
-      <button id="studio-settings" class="studio-button studio-button-quiet" type="button">
-        Git 设置
       </button>
       <button id="studio-commit" class="studio-button studio-button-primary" type="button" disabled>
         提交到 Git
@@ -107,8 +100,8 @@ const localizedLocales = locales.map(locale => ({
         <p class="studio-eyebrow">Git-backed editor</p>
         <h2>直接从仓库开始写作</h2>
         <p>
-          内容会实时从 GitHub 拉取。修改先保存在当前页面，
-          最后一次性创建 Git 提交，继续沿用原来的部署流程。
+          内容会实时从本地 src/content 读取。修改先保存在当前页面，
+          最后一次性创建 Git 提交并推送到远端。
         </p>
         <div class="studio-empty-steps">
           <span><b>01</b> 选择或新建内容</span>
@@ -122,78 +115,6 @@ const localizedLocales = locales.map(locale => ({
   </div>
 
   <div id="studio-toast" class="studio-toast" role="status" aria-live="polite"></div>
-
-  <dialog id="studio-settings-dialog" class="studio-dialog">
-    <form id="studio-settings-form" class="studio-dialog-card">
-      <header class="studio-dialog-heading">
-        <div>
-          <span class="studio-eyebrow">Connection</span>
-          <h2>Git 仓库设置</h2>
-        </div>
-        <button class="studio-dialog-close" type="button" data-close-dialog aria-label="关闭">×</button>
-      </header>
-
-      <div class="studio-dialog-body">
-        <div class="studio-field-grid">
-          <label class="studio-field">
-            <span>GitHub 仓库</span>
-            <input id="studio-setting-repo" name="repo" type="text" placeholder="owner/repo" autocomplete="off" required />
-          </label>
-          <label class="studio-field">
-            <span>发布分支</span>
-            <input id="studio-setting-branch" name="branch" type="text" placeholder="master" autocomplete="off" required />
-          </label>
-          <label class="studio-field studio-field-wide">
-            <span>
-              Personal access token
-              <small>只在当前标签页会话中保存</small>
-            </span>
-            <span class="studio-token-input">
-              <input
-                id="studio-setting-token"
-                name="token"
-                type="password"
-                placeholder="github_pat_..."
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <button id="studio-toggle-token" type="button">显示</button>
-            </span>
-          </label>
-        </div>
-
-        <div class="studio-note">
-          <strong>Token 权限</strong>
-          <p>
-            使用 Fine-grained token，并给目标仓库开启
-            <code>Contents: Read and write</code>。没有 Token 时仍可匿名读取公开仓库，
-            但无法提交修改。Token 不会写入仓库，也不会保存到 localStorage。
-          </p>
-        </div>
-
-        <div id="studio-settings-result" class="studio-inline-result" aria-live="polite"></div>
-      </div>
-
-      <footer class="studio-dialog-footer">
-        <button id="studio-clear-token" class="studio-button studio-button-quiet" type="button">
-          清除 Token
-        </button>
-        <div class="studio-dialog-footer-right">
-          <a
-            class="studio-text-link"
-            href="https://github.com/settings/personal-access-tokens"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            创建 Token
-          </a>
-          <button id="studio-save-settings" class="studio-button studio-button-primary" type="submit">
-            保存并同步
-          </button>
-        </div>
-      </footer>
-    </form>
-  </dialog>
 
   <dialog id="studio-commit-dialog" class="studio-dialog">
     <div class="studio-dialog-card">
@@ -1066,26 +987,6 @@ const localizedLocales = locales.map(locale => ({
     padding: 1.35rem 1.5rem;
   }
 
-  .studio-token-input {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  .studio-token-input button {
-    height: 2.75rem;
-    min-width: 3.2rem;
-    padding: 0 0.8rem;
-    border: 1px solid var(--studio-line);
-    border-radius: 0.72rem;
-    color: var(--studio-secondary);
-    background: transparent;
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.7rem;
-    white-space: nowrap;
-  }
-
   .studio-note {
     margin-top: 1.15rem;
     padding: 0.9rem 1rem;
@@ -1116,20 +1017,6 @@ const localizedLocales = locales.map(locale => ({
 
   .studio-note-compact {
     margin-top: 0.9rem;
-  }
-
-  .studio-inline-result {
-    min-height: 1.2rem;
-    margin-top: 0.8rem;
-    font-size: 0.72rem;
-  }
-
-  .studio-inline-result.is-error {
-    color: #b91c1c;
-  }
-
-  .studio-inline-result.is-success {
-    color: #15803d;
   }
 
   .studio-dialog-footer {

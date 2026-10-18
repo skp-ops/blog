@@ -4,14 +4,12 @@ Astro 博客，内容源位于 `src/content/`，使用 GitHub 仓库保存和发
 
 ## 内容工作台
 
-访问 `/admin/` 打开 Content Studio，可直接读取 GitHub 上最新的文章、说说和画廊数据，并支持编辑、新建和删除。修改会先保存在当前页面的工作副本中，点击“提交到 Git”后合并为一次 Git 提交，继续沿用仓库原有的部署流程。
+运行：
 
-首次提交前需要：
+```bash
+pnpm studio
+```
 
-1. 在 Git 设置中确认仓库和发布分支。
-2. 填写 Fine-grained personal access token。
-3. 给目标仓库开启 `Contents: Read and write` 权限。
+需要 Node.js 18.20.8 或更高版本。命令会启动只监听 `127.0.0.1` 的本地 Content Studio，并打开 `/admin/`。工作台直接读取当前工作区的文章、说说和画廊内容，支持编辑、新建和删除。修改先保存在页面工作副本中，点击“提交到 Git”后会写入本地文件、创建一次 Git 提交，并尝试推送到当前分支的远端。
 
-Token 只保存在当前标签页的 `sessionStorage` 中，不会写入仓库。未填写 Token 时可以匿名读取公开仓库，但无法提交修改。
-
-仓库、分支和页脚入口可在 `src/config.ts` 的 `admin` 配置中调整。
+管理页面和本地内容接口只在 `pnpm studio` 模式下注入，普通 `pnpm dev`、生产构建和线上博客都不会包含它们。编辑器只提交 `src/content/posts`、`src/content/notes` 和 `src/content/photos/photos.json` 下的内容，不会处理工作区中的其他修改。

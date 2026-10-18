@@ -1,0 +1,14 @@
+---
+import ContentStudio from '@/components/Admin/ContentStudio.astro'
+import { allLocales, base, defaultLocale, themeConfig } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+---
+
+<Layout bare noindex>
+  <ContentStudio
+    base={base}
+    locales={allLocales}
+    defaultLocale={defaultLocale}
+    siteTitle={themeConfig.site.title}
+  />
+</Layout>
