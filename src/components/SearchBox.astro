@@ -36,6 +36,7 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
       placeholder={currentUI.search || 'Search...'}
       aria-label="Search posts"
     />
+    <kbd id="search-shortcut" class="search-shortcut" aria-hidden="true">⌘K</kbd>
     <button
       id="search-clear"
       class="search-clear"
@@ -75,10 +76,12 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
    content?: string
  }
 
- let posts: Post[] = []
+ let allPosts: Post[] | null = null
+ let postsPromise: Promise<Post[]> | null = null
  let searchContainer: HTMLElement
  let searchInput: HTMLInputElement
  let searchClear: HTMLButtonElement
+ let searchShortcut: HTMLElement
  let searchResults: HTMLElement
  let searchResultsContent: HTMLElement
  let currentLang: string
@@ -91,6 +94,61 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
  const cleanupFns: Array<() => void> = []
  const SEARCH_HISTORY_KEY = 'blog-search-history'
  const MAX_RECENT_SEARCHES = 5
+
+ function getSearchCopy() {
+   if (currentLang === 'zh') {
+     return {
+       loading: '正在搜索…',
+       loadError: '搜索索引加载失败，请稍后重试。',
+       noResults: (query: string) => `没有找到与“${query}”相关的内容`,
+       moreResults: (count: number) => `另有 ${count} 条结果`,
+     }
+   }
+   if (currentLang === 'ja') {
+     return {
+       loading: '検索中…',
+       loadError: '検索インデックスを読み込めませんでした。',
+       noResults: (query: string) => `「${query}」に一致する記事はありません`,
+       moreResults: (count: number) => `他に ${count} 件あります`,
+     }
+   }
+   return {
+     loading: 'Searching…',
+     loadError: 'Search index could not be loaded.',
+     noResults: (query: string) => `No results found for "${query}"`,
+     moreResults: (count: number) => `+${count} more results`,
+   }
+ }
+
+ function getPostsForCurrentLang() {
+   return (allPosts ?? []).filter(post => post.lang === currentLang || post.lang === '')
+ }
+
+ async function loadPosts() {
+   if (allPosts)
+     return allPosts
+   if (postsPromise)
+     return postsPromise
+
+   postsPromise = fetch(`${basePath}/api/search.json`)
+     .then((response) => {
+       if (!response.ok)
+         throw new Error(`HTTP ${response.status}`)
+       return response.json()
+     })
+     .then((payload) => {
+       if (!Array.isArray(payload))
+         throw new TypeError('Invalid search index')
+       allPosts = payload
+       return allPosts
+     })
+     .catch((error) => {
+       postsPromise = null
+       throw error
+     })
+
+   return postsPromise
+ }
 
  function cancelPendingSearch() {
    if (searchTimer !== undefined) {
@@ -161,7 +219,8 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
      button.addEventListener('click', () => {
        searchInput.value = query
        searchClear.style.display = 'flex'
-       executeSearch(query)
+       searchShortcut.hidden = true
+       void executeSearch(query)
        saveRecentSearch(query)
        searchInput.focus()
      })
@@ -172,10 +231,14 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
    searchResults.style.display = 'block'
  }
 
- async function initSearch() {
+ function initSearch() {
    searchContainer = document.querySelector('.search-container') as HTMLElement
+   if (!searchContainer)
+     return
+
    searchInput = document.getElementById('search-input') as HTMLInputElement
    searchClear = document.getElementById('search-clear') as HTMLButtonElement
+   searchShortcut = document.getElementById('search-shortcut') as HTMLElement
    searchResults = document.getElementById('search-results') as HTMLElement
    searchResultsContent = document.getElementById('search-results-content') as HTMLElement
 
@@ -190,25 +253,8 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
    cancelPendingSearch()
    selectedIndex = -1
    resultItems = []
-
-   const controller = new AbortController()
-   cleanupFns.push(() => controller.abort())
-
-   // Fetch posts data.
-   try {
-     const response = await fetch(`${basePath}/api/search.json`, { signal: controller.signal })
-     if (response.ok) {
-       const allPosts = await response.json()
-       // Include universal posts in every language.
-       posts = allPosts.filter((post: Post) => post.lang === currentLang || post.lang === '')
-     }
-   }
-   catch (error) {
-     if ((error as Error).name !== 'AbortError') {
-       console.error('Failed to fetch posts data:', error)
-       posts = []
-     }
-   }
+   searchShortcut.textContent = /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘K' : 'Ctrl K'
+   searchShortcut.hidden = Boolean(searchInput.value)
 
    // Event listeners
    const onInput = () => handleSearch()
@@ -224,6 +270,26 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
    cleanupFns.push(() => searchInput.removeEventListener('focus', onFocus))
    cleanupFns.push(() => searchInput.removeEventListener('keydown', onKeydown))
    cleanupFns.push(() => searchClear.removeEventListener('click', onClear))
+
+   const onGlobalKeydown = (event: KeyboardEvent) => {
+     const target = event.target as HTMLElement | null
+     const isEditing = Boolean(target?.matches('input, textarea, select, [contenteditable="true"]'))
+
+     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+       event.preventDefault()
+       searchInput.focus()
+       searchInput.select()
+       handleSearch()
+       return
+     }
+
+     if (event.key === '/' && !isEditing && !event.metaKey && !event.ctrlKey && !event.altKey) {
+       event.preventDefault()
+       searchInput.focus()
+     }
+   }
+   document.addEventListener('keydown', onGlobalKeydown)
+   cleanupFns.push(() => document.removeEventListener('keydown', onGlobalKeydown))
 
    // Close search results when clicking outside
    const onDocumentClick = (e: MouseEvent) => {
@@ -255,7 +321,8 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
    if (initialQuery.length >= 2) {
      searchInput.value = initialQuery
      searchClear.style.display = 'flex'
-     executeSearch(initialQuery)
+     searchShortcut.hidden = true
+     void executeSearch(initialQuery)
    }
  }
 
@@ -264,6 +331,7 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
 
    // Show/hide clear button
    searchClear.style.display = query ? 'flex' : 'none'
+   searchShortcut.hidden = Boolean(query)
 
    cancelPendingSearch()
 
@@ -278,38 +346,59 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
      return
    }
 
-   searchTimer = window.setTimeout(() => executeSearch(query), 180)
+   searchTimer = window.setTimeout(() => void executeSearch(query), 180)
  }
 
- function executeSearch(query: string) {
+ async function executeSearch(query: string) {
    const normalized = query.trim().toLowerCase()
    if (normalized.length < 2) {
      return
    }
 
-   if (posts.length === 0) {
-     displayLoadError()
-     return
+   if (!allPosts)
+     displayLoading()
+
+   try {
+     await loadPosts()
+     if (searchInput.value.trim() !== query)
+       return
+
+     const results = getPostsForCurrentLang().filter((post) => {
+       const titleMatch = post.title.toLowerCase().includes(normalized)
+       const descMatch = post.description?.toLowerCase().includes(normalized) || false
+       const tagsMatch = post.tags?.some(tag => tag.toLowerCase().includes(normalized)) || false
+       const contentMatch = post.content?.toLowerCase().includes(normalized) || false
+       return titleMatch || descMatch || tagsMatch || contentMatch
+     })
+
+     displayResults(results, query)
+     syncQueryParam(query)
    }
+   catch (error) {
+     console.error('Failed to fetch posts data:', error)
+     displayLoadError()
+   }
+ }
 
-   const results = posts.filter((post) => {
-     const titleMatch = post.title.toLowerCase().includes(normalized)
-     const descMatch = post.description?.toLowerCase().includes(normalized) || false
-     const tagsMatch = post.tags?.some(tag => tag.toLowerCase().includes(normalized)) || false
-     const contentMatch = post.content?.toLowerCase().includes(normalized) || false
-     return titleMatch || descMatch || tagsMatch || contentMatch
-   })
-
-   displayResults(results, query)
-   syncQueryParam(query)
+ function displayLoading() {
+   searchResultsContent.replaceChildren()
+   const loading = document.createElement('div')
+   loading.className = 'search-no-results'
+   const text = document.createElement('p')
+   text.textContent = getSearchCopy().loading
+   loading.appendChild(text)
+   searchResultsContent.appendChild(loading)
+   searchResults.style.display = 'block'
  }
 
  function displayLoadError() {
-   searchResultsContent.innerHTML = `
-     <div class="search-no-results">
-       <p>Search index could not be loaded.</p>
-     </div>
-   `
+   searchResultsContent.replaceChildren()
+   const error = document.createElement('div')
+   error.className = 'search-no-results'
+   const text = document.createElement('p')
+   text.textContent = getSearchCopy().loadError
+   error.appendChild(text)
+   searchResultsContent.appendChild(error)
    searchResults.style.display = 'block'
  }
 
@@ -348,7 +437,7 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
      const empty = document.createElement('div')
      empty.className = 'search-no-results'
      const text = document.createElement('p')
-     text.textContent = `No results found for "${query}"`
+     text.textContent = getSearchCopy().noResults(query)
      empty.appendChild(text)
      searchResultsContent.appendChild(empty)
    }
@@ -417,7 +506,7 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
        const more = document.createElement('div')
        more.className = 'search-more-results'
        const text = document.createElement('p')
-       text.textContent = `+${results.length - 10} more results`
+       text.textContent = getSearchCopy().moreResults(results.length - 10)
        more.appendChild(text)
        searchResultsContent.appendChild(more)
      }
@@ -490,6 +579,7 @@ const currentUI = ui[currentLang as keyof typeof ui] ?? {}
    cancelPendingSearch()
    searchInput.value = ''
    searchClear.style.display = 'none'
+   searchShortcut.hidden = false
    hideResults()
    syncQueryParam('')
    searchInput.focus()

@@ -58,12 +58,27 @@ interface PendingAsset {
   previewUrl: string
 }
 
+interface LocalDraft {
+  key: string
+  collection: CollectionKey
+  path: string
+  isPending: boolean
+  editorPath?: string
+  data: Record<string, any>
+  body: string
+  revision: string
+  savedAt: number
+}
+
 const POSTS_ROOT = 'src/content/posts'
 const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
 const AUTO_SYNC_INTERVAL = 60_000
 const LIST_PAGE_SIZE = 16
 const EDITOR_VIEW_KEY = 'kun-blog-content-studio-view'
+const LOCAL_DRAFTS_KEY = 'kun-blog-content-studio-drafts-v1'
+const DRAFT_SAVE_DELAY = 500
+const MAX_LOCAL_DRAFTS = 20
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/avif': 'avif',
   'image/gif': 'gif',
@@ -245,6 +260,10 @@ function mountContentStudio(root: HTMLElement) {
   const emptyState = getById<HTMLElement>('studio-empty')
   const editorElement = getById<HTMLElement>('studio-editor')
   const toastElement = getById<HTMLElement>('studio-toast')
+  const draftRecoveryElement = getById<HTMLElement>('studio-draft-recovery')
+  const draftRecoveryCopy = getById<HTMLElement>('studio-draft-recovery-copy')
+  const draftRecoverButton = getById<HTMLButtonElement>('studio-draft-recover')
+  const draftDiscardButton = getById<HTMLButtonElement>('studio-draft-discard')
   const tabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.studio-tab'))
   const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.studio-filter'))
 
@@ -273,6 +292,11 @@ function mountContentStudio(root: HTMLElement) {
   let listPage = 0
   let previewTimer = 0
   let toastTimer = 0
+  let draftSaveTimer = 0
+  let draftStorageErrorShown = false
+  let localDraftsCache: LocalDraft[] | null = null
+  let pendingDraftRecovery: LocalDraft[] = []
+  let focusMode = false
   const pendingAssets = new Map<string, PendingAsset>()
 
   function readEditorViewMode(): EditorViewMode {
@@ -300,6 +324,382 @@ function mountContentStudio(root: HTMLElement) {
     toastTimer = window.setTimeout(() => {
       toastElement.classList.remove('is-visible')
     }, isError ? 7_000 : 4_500)
+  }
+
+  function isLocalDraft(value: unknown): value is LocalDraft {
+    if (!value || typeof value !== 'object')
+      return false
+    const draft = value as Partial<LocalDraft>
+    return typeof draft.key === 'string'
+      && isCollectionKey(draft.collection)
+      && typeof draft.path === 'string'
+      && typeof draft.revision === 'string'
+      && typeof draft.savedAt === 'number'
+      && Boolean(draft.data && typeof draft.data === 'object' && !Array.isArray(draft.data))
+      && typeof draft.body === 'string'
+      && (draft.editorPath === undefined || typeof draft.editorPath === 'string')
+  }
+
+  function readLocalDrafts() {
+    if (localDraftsCache)
+      return localDraftsCache
+
+    try {
+      const raw = localStorage.getItem(LOCAL_DRAFTS_KEY)
+      const parsed = raw ? JSON.parse(raw) : []
+      localDraftsCache = Array.isArray(parsed)
+        ? parsed.filter(isLocalDraft).slice(0, MAX_LOCAL_DRAFTS)
+        : []
+    }
+    catch {
+      localDraftsCache = []
+    }
+
+    return localDraftsCache
+  }
+
+  function writeLocalDrafts(drafts: LocalDraft[]) {
+    localDraftsCache = [...drafts]
+      .sort((a, b) => b.savedAt - a.savedAt)
+      .slice(0, MAX_LOCAL_DRAFTS)
+
+    try {
+      localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(localDraftsCache))
+      draftStorageErrorShown = false
+    }
+    catch {
+      if (!draftStorageErrorShown) {
+        draftStorageErrorShown = true
+        showToast('浏览器草稿保存失败，请先提交当前修改或清理浏览器存储。', true)
+      }
+    }
+  }
+
+  function saveDraftRecord(draft: LocalDraft) {
+    const next = readLocalDrafts().filter((item) => {
+      if (item.key === draft.key)
+        return false
+      return draft.collection === 'photos' || item.collection !== draft.collection || item.path !== draft.path
+    })
+    next.push(draft)
+    writeLocalDrafts(next)
+  }
+
+  function removeLocalDraft(key: string) {
+    writeLocalDrafts(readLocalDrafts().filter(draft => draft.key !== key))
+  }
+
+  function clearLocalDrafts() {
+    localDraftsCache = []
+    pendingDraftRecovery = []
+    draftRecoveryElement.hidden = true
+    try {
+      localStorage.removeItem(LOCAL_DRAFTS_KEY)
+    }
+    catch {
+      // Ignore unavailable browser storage.
+    }
+  }
+
+  function clearCommittedLocalDrafts() {
+    if (!workspace)
+      return
+
+    const remaining = readLocalDrafts().filter((draft) => {
+      const item = workspace?.items[draft.collection].find(current =>
+        current.key === draft.key
+        || (draft.collection !== 'photos' && current.path === draft.path),
+      )
+      if (!item || item.isPending)
+        return true
+
+      const draftRaw = draft.collection === 'photos'
+        ? JSON.stringify(draft.data, null, 2)
+        : serializeMarkdown({
+            ...item,
+            data: draft.data,
+            body: draft.body,
+          })
+      return item.raw !== draftRaw
+    })
+
+    writeLocalDrafts(remaining)
+    pendingDraftRecovery = []
+    renderDraftRecovery()
+  }
+
+  function formatDraftTime(value: number) {
+    return new Intl.DateTimeFormat('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(new Date(value))
+  }
+
+  function setDraftStatus(text: string) {
+    const status = document.getElementById('studio-local-draft-status')
+    if (status)
+      status.textContent = text
+  }
+
+  function updateDraftStatus(item: ContentItem) {
+    const draft = readLocalDrafts().find(current =>
+      current.key === item.key
+      || (item.collection !== 'photos' && current.path === item.path),
+    )
+    setDraftStatus(draft
+      ? `浏览器草稿 · ${formatDraftTime(draft.savedAt)}`
+      : '输入内容会自动保存到浏览器')
+  }
+
+  function readEditorDraft(item: ContentItem): LocalDraft | null {
+    if (!workspace || !document.getElementById('studio-editor-form'))
+      return null
+
+    const data: Record<string, any> = {
+      ...item.data,
+      title: inputValue('studio-editor-title'),
+    }
+    let body = item.body
+
+    if (item.collection === 'posts') {
+      data.published = inputValue('studio-editor-date')
+      data.updated = inputValue('studio-editor-updated') || undefined
+      data.description = inputValue('studio-editor-description')
+      data.tags = parseTags(inputValue('studio-editor-tags'))
+      data.draft = inputChecked('studio-editor-draft')
+      data.pin = Number.parseInt(inputValue('studio-editor-pin') || '0', 10) || 0
+      data.toc = inputChecked('studio-editor-toc')
+      data.lang = inputValue('studio-editor-lang')
+      data.abbrlink = inputValue('studio-editor-abbrlink')
+      data.series = inputValue('studio-editor-series')
+      data.seriesTitle = inputValue('studio-editor-series-title')
+      data.seriesOrder = Number.parseInt(inputValue('studio-editor-series-order') || '0', 10) || 0
+      body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement | null)?.value ?? ''
+    }
+    else if (item.collection === 'notes') {
+      data.date = inputValue('studio-editor-date')
+      data.description = inputValue('studio-editor-description')
+      data.image = inputValue('studio-editor-image')
+      data.tags = parseTags(inputValue('studio-editor-tags'))
+      data.draft = inputChecked('studio-editor-draft')
+      data.lang = inputValue('studio-editor-lang')
+      body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement | null)?.value ?? ''
+    }
+    else {
+      data.date = inputValue('studio-editor-date')
+      data.description = inputValue('studio-editor-description')
+      data.image = inputValue('studio-editor-image')
+      data.thumbnail = inputValue('studio-editor-thumbnail')
+      data.tags = parseTags(inputValue('studio-editor-tags'))
+      data.location = inputValue('studio-editor-location')
+      data.camera = inputValue('studio-editor-camera')
+      data.lens = inputValue('studio-editor-lens')
+      data.iso = inputValue('studio-editor-iso')
+      data.aperture = inputValue('studio-editor-aperture')
+      data.shutter = inputValue('studio-editor-shutter')
+      data.focalLength = inputValue('studio-editor-focal-length')
+    }
+
+    return {
+      key: item.key,
+      collection: item.collection,
+      path: item.path,
+      isPending: item.isPending,
+      editorPath: item.isPending && item.collection !== 'photos'
+        ? inputValue('studio-editor-path')
+        : undefined,
+      data,
+      body,
+      revision: workspace.revision,
+      savedAt: Date.now(),
+    }
+  }
+
+  function persistEditorDraft(item: ContentItem) {
+    const draft = readEditorDraft(item)
+    if (!draft)
+      return
+    saveDraftRecord(draft)
+    updateDraftStatus(item)
+  }
+
+  function scheduleDraftSave(item: ContentItem) {
+    window.clearTimeout(draftSaveTimer)
+    setDraftStatus('正在保存浏览器草稿…')
+    draftSaveTimer = window.setTimeout(() => persistEditorDraft(item), DRAFT_SAVE_DELAY)
+  }
+
+  function flushEditorDraft(item: ContentItem | null) {
+    window.clearTimeout(draftSaveTimer)
+    draftSaveTimer = 0
+    if (item)
+      persistEditorDraft(item)
+  }
+
+  function flushCurrentEditorDraft() {
+    const item = findItem(selectedKey)
+    if (item && editorFormDirty)
+      flushEditorDraft(item)
+  }
+
+  function applyDraftToItem(item: ContentItem, draft: LocalDraft) {
+    item.data = JSON.parse(JSON.stringify(draft.data))
+    item.body = draft.body
+    item.isPending = draft.isPending
+    if (draft.isPending && draft.editorPath && draft.collection !== 'photos') {
+      const root = draft.collection === 'posts' ? POSTS_ROOT : NOTES_ROOT
+      const relativePath = draft.editorPath
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '')
+        .replace(new RegExp(`^${root}/`), '')
+      if (relativePath)
+        item.path = `${root}/${relativePath}`
+    }
+    item.raw = item.collection === 'photos'
+      ? serializePhoto(item)
+      : serializeMarkdown(item)
+  }
+
+  function applyDraftToWorkspace(draft: LocalDraft) {
+    if (!workspace)
+      return null
+
+    let item = workspace.items[draft.collection].find(current => current.key === draft.key)
+    if (!item && draft.collection !== 'photos') {
+      item = workspace.items[draft.collection].find(current => current.path === draft.path)
+    }
+
+    if (!item) {
+      if (!draft.isPending)
+        return null
+      item = {
+        key: draft.key,
+        collection: draft.collection,
+        path: draft.path,
+        data: {},
+        body: '',
+        raw: '',
+        isPending: true,
+      }
+      workspace.items[draft.collection].unshift(item)
+    }
+
+    applyDraftToItem(item, draft)
+    return item
+  }
+
+  function renderDraftRecovery() {
+    if (!pendingDraftRecovery.length) {
+      draftRecoveryElement.hidden = true
+      return
+    }
+
+    draftRecoveryCopy.textContent = `发现 ${pendingDraftRecovery.length} 个浏览器草稿，仓库内容此后有更新。恢复会把这些修改加入当前工作副本。`
+    draftRecoveryElement.hidden = false
+  }
+
+  function restoreLocalDrafts() {
+    if (!workspace)
+      return
+
+    const revision = workspace.revision
+    const drafts = readLocalDrafts()
+    const current = drafts.filter(draft => draft.revision === revision)
+    const outdated = drafts.filter(draft => draft.revision !== revision)
+    const restoredItems: ContentItem[] = []
+    const unrecoverableKeys = new Set<string>()
+
+    for (const draft of current) {
+      const item = applyDraftToWorkspace(draft)
+      if (item)
+        restoredItems.push(item)
+      else
+        unrecoverableKeys.add(draft.key)
+    }
+
+    if (unrecoverableKeys.size) {
+      writeLocalDrafts(readLocalDrafts().filter(draft => !unrecoverableKeys.has(draft.key)))
+    }
+
+    if (restoredItems.length) {
+      sortItems(workspace.items.posts)
+      sortItems(workspace.items.notes)
+      sortItems(workspace.items.photos)
+      selectedKey = restoredItems[0].key
+      activeCollection = restoredItems[0].collection
+      listPage = 0
+      showToast(`已恢复 ${restoredItems.length} 个浏览器草稿。`)
+    }
+
+    pendingDraftRecovery = outdated
+    renderDraftRecovery()
+  }
+
+  function recoverOutdatedDrafts() {
+    if (!workspace || !pendingDraftRecovery.length)
+      return
+
+    const revision = workspace.revision
+    const restored: ContentItem[] = []
+    const recoveryKeys = new Set(pendingDraftRecovery.map(draft => draft.key))
+    const recoveredKeys = new Set<string>()
+    for (const draft of pendingDraftRecovery) {
+      const item = applyDraftToWorkspace({ ...draft, revision })
+      if (item) {
+        restored.push(item)
+        recoveredKeys.add(draft.key)
+      }
+    }
+
+    writeLocalDrafts(readLocalDrafts().flatMap((draft) => {
+      if (!recoveryKeys.has(draft.key))
+        return [draft]
+      return recoveredKeys.has(draft.key)
+        ? [{ ...draft, revision, savedAt: Date.now() }]
+        : []
+    }))
+    pendingDraftRecovery = []
+    renderDraftRecovery()
+    sortItems(workspace.items.posts)
+    sortItems(workspace.items.notes)
+    sortItems(workspace.items.photos)
+    selectedKey = restored[0]?.key ?? selectedKey
+    if (restored[0])
+      activeCollection = restored[0].collection
+    listPage = 0
+    renderEverything()
+    showToast(restored.length ? `已恢复 ${restored.length} 个浏览器草稿。` : '没有可恢复的草稿。')
+  }
+
+  function discardOutdatedDrafts() {
+    if (!pendingDraftRecovery.length)
+      return
+    const discardedKeys = new Set(pendingDraftRecovery.map(draft => draft.key))
+    writeLocalDrafts(readLocalDrafts().filter(draft => !discardedKeys.has(draft.key)))
+    pendingDraftRecovery = []
+    renderDraftRecovery()
+    showToast('已丢弃旧浏览器草稿。')
+  }
+
+  function updateFocusButtons() {
+    for (const button of Array.from(editorElement.querySelectorAll<HTMLButtonElement>('.studio-focus-toggle'))) {
+      button.textContent = focusMode ? '退出专注' : '专注写作'
+      button.setAttribute('aria-pressed', String(focusMode))
+      button.title = focusMode ? '退出专注写作（Esc）' : '专注写作（⌘⇧F）'
+    }
+  }
+
+  function setFocusMode(enabled: boolean, focusEditor = true) {
+    focusMode = enabled
+    root.classList.toggle('is-focus-mode', enabled)
+    updateFocusButtons()
+    if (enabled && focusEditor) {
+      window.setTimeout(() => {
+        const body = document.getElementById('studio-editor-body') as HTMLTextAreaElement | null
+        body?.focus()
+      }, 0)
+    }
   }
 
   function allCurrentItems() {
@@ -425,7 +825,10 @@ function mountContentStudio(root: HTMLElement) {
     const referencedMedia = new Set(
       allCurrentItems()
         .filter(item => !item.isPending)
-        .flatMap(item => [item.data.image, item.data.thumbnail])
+        .flatMap((item) => {
+          const inlineImages = item.body.match(/\/gallery\/uploads\/[^\s)"'<>]+/g) ?? []
+          return [item.data.image, item.data.thumbnail, ...inlineImages]
+        })
         .filter((value): value is string => typeof value === 'string' && value.startsWith('/')),
     )
     for (const asset of pendingAssets.values()) {
@@ -480,6 +883,7 @@ function mountContentStudio(root: HTMLElement) {
     }
 
     const query = searchInput.value.trim().toLowerCase()
+    const localDrafts = readLocalDrafts()
     const items = workspace.items[activeCollection]
       .filter((item) => {
         if (!query)
@@ -495,7 +899,11 @@ function mountContentStudio(root: HTMLElement) {
           return Boolean(item.data.draft) || item.isPending
         if (activeFilter === 'changed') {
           const baseline = workspace?.baseline.get(item.key)
-          return item.isPending || !baseline || baseline.raw !== item.raw
+          const hasLocalDraft = localDrafts.some(draft =>
+            draft.key === item.key
+            || (item.collection !== 'photos' && draft.path === item.path),
+          )
+          return item.isPending || hasLocalDraft || !baseline || baseline.raw !== item.raw
         }
         return true
       })
@@ -578,6 +986,16 @@ function mountContentStudio(root: HTMLElement) {
         const badge = document.createElement('span')
         badge.className = 'studio-mini-badge'
         badge.textContent = item.isPending ? '待保存' : 'new'
+        foot.appendChild(badge)
+      }
+
+      if (localDrafts.some(draft =>
+        draft.key === item.key
+        || (item.collection !== 'photos' && draft.path === item.path),
+      )) {
+        const badge = document.createElement('span')
+        badge.className = 'studio-mini-badge is-local-draft'
+        badge.textContent = '本地草稿'
         foot.appendChild(badge)
       }
 
@@ -955,7 +1373,7 @@ function mountContentStudio(root: HTMLElement) {
     })
   }
 
-  async function importImageFile(file: File, targetId: string) {
+  async function createPendingImage(file: File) {
     const extension = IMAGE_EXTENSIONS[file.type]
       || file.name.toLowerCase().match(/\.(avif|gif|jpe?g|png|webp)$/)?.[1]?.replace('jpeg', 'jpg')
     if (!extension || !['avif', 'gif', 'jpg', 'png', 'webp'].includes(extension))
@@ -969,7 +1387,6 @@ function mountContentStudio(root: HTMLElement) {
       throw new Error('图片内容读取失败。')
 
     const month = localDateString().slice(0, 7)
-    const previousImage = (document.getElementById('studio-editor-image') as HTMLInputElement | null)?.value
     const baseName = file.name
       .replace(/\.[^.]+$/, '')
       .toLowerCase()
@@ -983,6 +1400,13 @@ function mountContentStudio(root: HTMLElement) {
       content: base64,
       previewUrl: dataUrl,
     })
+
+    return { path: assetPath, publicUrl, previewUrl: dataUrl }
+  }
+
+  async function importImageFile(file: File, targetId: string) {
+    const previousImage = (document.getElementById('studio-editor-image') as HTMLInputElement | null)?.value
+    const { publicUrl } = await createPendingImage(file)
 
     setInputValue(targetId, publicUrl)
     const target = document.getElementById(targetId) as HTMLInputElement | null
@@ -998,6 +1422,23 @@ function mountContentStudio(root: HTMLElement) {
 
     updateMediaPreview(targetId)
     showToast('图片已加入待提交文件，提交 Git 时会一起上传。')
+  }
+
+  async function importInlineImage(file: File, textarea: HTMLTextAreaElement) {
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const { publicUrl } = await createPendingImage(file)
+    const alt = file.name
+      .replace(/\.[^.]+$/, '')
+      .replaceAll('[', '')
+      .replaceAll(']', '')
+      .trim() || '图片'
+    const markdown = `![${alt}](${publicUrl})`
+
+    textarea.setRangeText(markdown, start, end, 'end')
+    textarea.focus()
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    showToast('正文图片已加入待提交文件，提交 Git 时会一起上传。')
   }
 
   function initializeMediaFields() {
@@ -1123,12 +1564,108 @@ function mountContentStudio(root: HTMLElement) {
     textarea.dispatchEvent(new Event('input', { bubbles: true }))
   }
 
+  function handleBodyKeydown(event: KeyboardEvent) {
+    const textarea = event.currentTarget as HTMLTextAreaElement
+    const value = textarea.value
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1
+      const nextLineBreak = value.indexOf('\n', end)
+      const lineEnd = nextLineBreak === -1 ? value.length : nextLineBreak
+      const block = value.slice(lineStart, lineEnd)
+
+      if (event.shiftKey) {
+        const replacement = block
+          .split('\n')
+          .map(line => line.startsWith('  ') ? line.slice(2) : line.startsWith(' ') ? line.slice(1) : line)
+          .join('\n')
+        textarea.setRangeText(replacement, lineStart, lineEnd, 'select')
+      }
+      else if (start === end) {
+        textarea.setRangeText('  ', start, end, 'end')
+      }
+      else {
+        const replacement = block
+          .split('\n')
+          .map(line => `  ${line}`)
+          .join('\n')
+        textarea.setRangeText(replacement, lineStart, lineEnd, 'select')
+      }
+
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+      return
+    }
+
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+      && !event.metaKey
+      && !event.ctrlKey
+      && !event.altKey
+      && start === end
+    ) {
+      const fencesBeforeCursor = (value.slice(0, start).match(/^ {0,3}```/gm) ?? []).length
+      if (fencesBeforeCursor % 2 === 1)
+        return
+
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1
+      const currentLine = value.slice(lineStart, start)
+      const match = currentLine.match(/^(\s*)((?:[-*+>]|\d+\.) )(.*)$/)
+      if (!match)
+        return
+
+      event.preventDefault()
+      const [, indent, marker, content] = match
+      if (!content.trim()) {
+        textarea.setRangeText('\n', lineStart, start, 'end')
+      }
+      else {
+        const nextMarker = /^\d+\. $/.test(marker)
+          ? `${Number.parseInt(marker, 10) + 1}. `
+          : marker
+        textarea.setRangeText(`\n${indent}${nextMarker}`, start, start, 'end')
+      }
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+  }
+
+  function setupEditorScrollSync(textarea: HTMLTextAreaElement) {
+    const preview = document.querySelector('.studio-preview-panel') as HTMLElement | null
+    if (!preview)
+      return
+
+    let syncing = false
+    const syncScroll = (source: HTMLElement, target: HTMLElement) => {
+      if (syncing)
+        return
+      syncing = true
+      const sourceRange = Math.max(1, source.scrollHeight - source.clientHeight)
+      const targetRange = Math.max(0, target.scrollHeight - target.clientHeight)
+      target.scrollTop = (source.scrollTop / sourceRange) * targetRange
+      window.requestAnimationFrame(() => {
+        syncing = false
+      })
+    }
+
+    textarea.addEventListener('scroll', () => syncScroll(textarea, preview), { passive: true })
+    preview.addEventListener('scroll', () => syncScroll(preview, textarea), { passive: true })
+  }
+
   function renderEditor() {
+    window.clearTimeout(previewTimer)
+    previewTimer = 0
+    window.clearTimeout(draftSaveTimer)
+    draftSaveTimer = 0
     const item = findItem(selectedKey)
     emptyState.hidden = Boolean(item)
     editorElement.hidden = !item
 
     if (!item) {
+      if (focusMode)
+        setFocusMode(false, false)
       editorElement.replaceChildren()
       return
     }
@@ -1156,11 +1693,11 @@ function mountContentStudio(root: HTMLElement) {
             </div>
             <div class="studio-markdown-toolbar" role="toolbar" aria-label="Markdown 格式化">
               <button type="button" data-md-action="h2" title="二级标题">H2</button>
-              <button type="button" data-md-action="bold" title="粗体"><strong>B</strong></button>
-              <button type="button" data-md-action="italic" title="斜体"><em>I</em></button>
+              <button type="button" data-md-action="bold" title="粗体（⌘B）"><strong>B</strong></button>
+              <button type="button" data-md-action="italic" title="斜体（⌘I）"><em>I</em></button>
               <button type="button" data-md-action="code" title="行内代码">&lt;/&gt;</button>
               <span class="studio-toolbar-separator" aria-hidden="true"></span>
-              <button type="button" data-md-action="link" title="链接">↗</button>
+              <button type="button" data-md-action="link" title="链接（⌘K）">↗</button>
               <button type="button" data-md-action="image" title="图片">IMG</button>
               <span class="studio-toolbar-separator" aria-hidden="true"></span>
               <button type="button" data-md-action="quote" title="引用">❝</button>
@@ -1180,7 +1717,8 @@ function mountContentStudio(root: HTMLElement) {
             </div>
             <div class="studio-editor-meta">
               <span>Markdown 实时预览</span>
-              <span id="studio-editor-reading-time"></span>
+              <span id="studio-local-draft-status" class="studio-local-draft-status"></span>
+              <span id="studio-editor-reading-time" class="studio-editor-reading-time"></span>
             </div>
           </section>
         `
@@ -1194,9 +1732,21 @@ function mountContentStudio(root: HTMLElement) {
         </div>
         <div class="studio-editor-heading-side">
           <div class="studio-editor-state"></div>
-          <button id="studio-editor-quick-save" class="studio-button studio-button-primary studio-editor-quick-save" type="button">
-            保存工作副本
-          </button>
+          <div class="studio-editor-heading-actions">
+            <button
+              id="studio-editor-focus"
+              class="studio-button studio-button-quiet studio-editor-quick-save studio-focus-toggle"
+              type="button"
+              aria-pressed="false"
+              aria-keyshortcuts="Meta+Shift+F Control+Shift+F"
+              title="专注写作（⌘⇧F）"
+            >
+              专注写作
+            </button>
+            <button id="studio-editor-quick-save" class="studio-button studio-button-primary studio-editor-quick-save" type="button">
+              保存工作副本
+            </button>
+          </div>
         </div>
       </div>
       <form id="studio-editor-form" class="studio-editor-form" novalidate>
@@ -1208,7 +1758,7 @@ function mountContentStudio(root: HTMLElement) {
             ${item.isPending ? '丢弃这条新建' : '删除内容'}
           </button>
           <div class="studio-editor-actions-right">
-            <span class="studio-microcopy">修改先保存在工作副本</span>
+            <span class="studio-microcopy">输入会自动保存浏览器草稿</span>
             <button class="studio-button studio-button-primary" type="submit">
               保存工作副本
             </button>
@@ -1286,16 +1836,21 @@ function mountContentStudio(root: HTMLElement) {
     setEditorView(editorViewMode)
     updateMarkdownPreview(item)
     initializeMediaFields()
+    updateDraftStatus(item)
+    updateFocusButtons()
 
     const form = getById<HTMLFormElement>('studio-editor-form')
     const formMessage = getById<HTMLElement>('studio-editor-message')
     const deleteButton = getById<HTMLButtonElement>('studio-editor-delete')
     const quickSaveButton = getById<HTMLButtonElement>('studio-editor-quick-save')
+    const focusButton = getById<HTMLButtonElement>('studio-editor-focus')
+    const bodyInput = document.getElementById('studio-editor-body') as HTMLTextAreaElement | null
 
     form.addEventListener('input', () => {
       if (heading)
         heading.textContent = inputValue('studio-editor-title') || `未命名${collectionLabels[item.collection]}`
       schedulePreview(item)
+      scheduleDraftSave(item)
       if (!editorFormDirty) {
         editorFormDirty = true
         formMessage.textContent = '表单有未保存的字段，保存后才会加入 Git 提交。'
@@ -1316,6 +1871,38 @@ function mountContentStudio(root: HTMLElement) {
       formMessage.classList.remove('is-info')
       saveEditor(item, formMessage)
     })
+
+    focusButton.addEventListener('click', () => setFocusMode(!focusMode))
+
+    if (bodyInput) {
+      bodyInput.addEventListener('keydown', handleBodyKeydown)
+      setupEditorScrollSync(bodyInput)
+      bodyInput.addEventListener('paste', (event) => {
+        const item = Array.from(event.clipboardData?.items ?? [])
+          .find(entry => entry.kind === 'file' && entry.type.startsWith('image/'))
+        const file = item?.getAsFile()
+        if (!file)
+          return
+        event.preventDefault()
+        void importInlineImage(file, bodyInput).catch(error =>
+          showToast(error instanceof Error ? error.message : String(error), true),
+        )
+      })
+      bodyInput.addEventListener('dragover', (event) => {
+        if (event.dataTransfer?.types.includes('Files'))
+          event.preventDefault()
+      })
+      bodyInput.addEventListener('drop', (event) => {
+        const file = Array.from(event.dataTransfer?.files ?? [])
+          .find(entry => entry.type.startsWith('image/'))
+        if (!file)
+          return
+        event.preventDefault()
+        void importInlineImage(file, bodyInput).catch(error =>
+          showToast(error instanceof Error ? error.message : String(error), true),
+        )
+      })
+    }
 
     for (const button of Array.from(editorElement.querySelectorAll<HTMLButtonElement>('[data-editor-view]'))) {
       button.addEventListener('click', () => {
@@ -1377,6 +1964,7 @@ function mountContentStudio(root: HTMLElement) {
       return false
 
     try {
+      const previousKey = item.key
       const title = inputValue('studio-editor-title')
       const date = inputValue('studio-editor-date')
 
@@ -1448,6 +2036,9 @@ function mountContentStudio(root: HTMLElement) {
         : serializeMarkdown(item)
       item.isPending = false
       editorFormDirty = false
+      if (previousKey !== item.key)
+        removeLocalDraft(previousKey)
+      persistEditorDraft(item)
       renderList()
       renderEditor()
       updateActionState()
@@ -1476,6 +2067,7 @@ function mountContentStudio(root: HTMLElement) {
 
     workspace.items[item.collection] = workspace.items[item.collection]
       .filter(current => current.key !== item.key)
+    removeLocalDraft(item.key)
     selectedKey = null
     editorFormDirty = false
     renderEverything()
@@ -1485,13 +2077,26 @@ function mountContentStudio(root: HTMLElement) {
   function selectItem(key: string) {
     if (key === selectedKey)
       return
-    // eslint-disable-next-line no-alert -- switching editors can discard form input
-    if (editorFormDirty && !window.confirm('当前表单还有未保存的输入，切换后将丢失。继续吗？'))
-      return
 
     const item = findItem(key)
     if (!item)
       return
+
+    if (editorFormDirty) {
+      const current = findItem(selectedKey)
+      if (current) {
+        flushEditorDraft(current)
+        showToast('未保存的输入已保存为浏览器草稿。')
+      }
+    }
+
+    const draft = readLocalDrafts().find(current =>
+      current.key === item.key
+      || (item.collection !== 'photos' && current.path === item.path),
+    )
+    if (draft && draft.revision === workspace?.revision)
+      applyDraftToItem(item, draft)
+
     activeCollection = item.collection
     selectedKey = key
     editorFormDirty = false
@@ -1506,6 +2111,14 @@ function mountContentStudio(root: HTMLElement) {
     if (!workspace) {
       showToast('内容尚未同步完成。', true)
       return
+    }
+
+    if (editorFormDirty) {
+      const current = findItem(selectedKey)
+      if (current) {
+        flushEditorDraft(current)
+        showToast('未保存的输入已保存为浏览器草稿。')
+      }
     }
 
     const today = localDateString()
@@ -1608,6 +2221,7 @@ function mountContentStudio(root: HTMLElement) {
   function renderEverything() {
     updateCounts()
     updateFilters()
+    updateTabs()
     renderList()
     renderEditor()
     updateActionState()
@@ -1756,10 +2370,12 @@ function mountContentStudio(root: HTMLElement) {
       }
       pendingAssets.clear()
       listPage = 0
-      selectedKey = previousSelection && findItem(previousSelection)
-        ? previousSelection
-        : null
+      const previousItem = previousSelection ? findItem(previousSelection) : null
+      selectedKey = previousItem?.key ?? null
+      if (previousItem)
+        activeCollection = previousItem.collection
       editorFormDirty = false
+      restoreLocalDrafts()
       renderEverything()
       setConnection('live', workspace.dirty ? '本地工作区 · 已有未提交改动' : '本地工作区 · 已同步')
       if (warnings.length)
@@ -1885,6 +2501,7 @@ function mountContentStudio(root: HTMLElement) {
       }
       commitResult.hidden = false
       showToast(result.pushed ? 'Git 提交已创建并推送。' : 'Git 提交已创建，但推送失败。', !result.pushed)
+      clearCommittedLocalDrafts()
 
       try {
         await loadContent({ force: true, preserveSelection: true, silent: true })
@@ -1911,15 +2528,17 @@ function mountContentStudio(root: HTMLElement) {
 
   async function manualSync() {
     const hasChanges = Boolean(computeChanges().files.length)
+    const hasLocalDrafts = readLocalDrafts().length > 0
     if (
-      (hasChanges || editorFormDirty)
+      (hasChanges || editorFormDirty || hasLocalDrafts)
       // eslint-disable-next-line no-alert -- refresh can discard unsaved work
-      && !window.confirm('刷新会丢弃当前所有未提交修改，确定继续吗？')
+      && !window.confirm('刷新会丢弃当前未提交修改和浏览器草稿，确定继续吗？')
     ) {
       return
     }
 
     editorFormDirty = false
+    clearLocalDrafts()
     await loadContent({ force: true, preserveSelection: true })
   }
 
@@ -1928,10 +2547,11 @@ function mountContentStudio(root: HTMLElement) {
       return
 
     // eslint-disable-next-line no-alert -- discarding edits needs explicit confirmation
-    if (!window.confirm('确定放弃当前所有未提交修改吗？此操作只会重新读取本地文件。'))
+    if (!window.confirm('确定放弃当前所有未提交修改和浏览器草稿吗？此操作只会重新读取本地文件。'))
       return
 
     editorFormDirty = false
+    clearLocalDrafts()
     await loadContent({ force: true, preserveSelection: true })
   }
 
@@ -1940,9 +2560,13 @@ function mountContentStudio(root: HTMLElement) {
       const collection = button.dataset.collection
       if (!isCollectionKey(collection) || collection === activeCollection)
         return
-      // eslint-disable-next-line no-alert -- switching collections can discard form input
-      if (editorFormDirty && !window.confirm('当前表单还有未保存的输入，切换后将丢失。继续吗？'))
-        return
+
+      if (editorFormDirty) {
+        const current = findItem(selectedKey)
+        if (current)
+          flushEditorDraft(current)
+        showToast('未保存的输入已保存为浏览器草稿。')
+      }
 
       activeCollection = collection
       selectedKey = null
@@ -1977,6 +2601,8 @@ function mountContentStudio(root: HTMLElement) {
   discardButton.addEventListener('click', discardChanges)
   commitButton.addEventListener('click', openCommitDialog)
   commitConfirm.addEventListener('click', submitCommit)
+  draftRecoverButton.addEventListener('click', recoverOutdatedDrafts)
+  draftDiscardButton.addEventListener('click', discardOutdatedDrafts)
 
   for (const closeButton of Array.from(document.querySelectorAll<HTMLElement>('[data-close-dialog]'))) {
     closeButton.addEventListener('click', () => {
@@ -1992,11 +2618,33 @@ function mountContentStudio(root: HTMLElement) {
   }
 
   window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && focusMode && !commitDialog.open) {
+      event.preventDefault()
+      setFocusMode(false)
+      return
+    }
+
     if (!(event.metaKey || event.ctrlKey))
       return
 
     const key = event.key.toLowerCase()
-    if (key === 's') {
+    if (key === 'f' && event.shiftKey && findItem(selectedKey)) {
+      event.preventDefault()
+      setFocusMode(!focusMode)
+    }
+    else if (document.activeElement?.id === 'studio-editor-body' && key === 'b') {
+      event.preventDefault()
+      applyMarkdownAction('bold')
+    }
+    else if (document.activeElement?.id === 'studio-editor-body' && key === 'i') {
+      event.preventDefault()
+      applyMarkdownAction('italic')
+    }
+    else if (document.activeElement?.id === 'studio-editor-body' && key === 'k') {
+      event.preventDefault()
+      applyMarkdownAction('link')
+    }
+    else if (key === 's') {
       const item = findItem(selectedKey)
       const formMessage = document.getElementById('studio-editor-message')
       if (item && formMessage) {
@@ -2013,10 +2661,19 @@ function mountContentStudio(root: HTMLElement) {
   })
 
   window.addEventListener('beforeunload', (event) => {
-    if (computeChanges().files.length || editorFormDirty) {
+    flushCurrentEditorDraft()
+
+    if (computeChanges().files.length || (editorFormDirty && draftStorageErrorShown)) {
       event.preventDefault()
     }
   })
+
+  window.addEventListener('pagehide', flushCurrentEditorDraft)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden)
+      flushCurrentEditorDraft()
+  })
+  document.addEventListener('astro:before-swap', flushCurrentEditorDraft)
 
   window.setInterval(() => {
     if (
@@ -2032,6 +2689,7 @@ function mountContentStudio(root: HTMLElement) {
     void loadContent({ silent: true, preserveSelection: true })
   }, AUTO_SYNC_INTERVAL)
 
+  setFocusMode(focusMode, false)
   renderEverything()
   setConnection('loading', '准备读取本地内容')
   void loadContent()

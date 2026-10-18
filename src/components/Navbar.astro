@@ -67,12 +67,42 @@ const navItems = [
 <nav
   aria-label="Site Navigation"
   class:list={[
-    isPost ? 'hidden lg:block' : '',
-    'mb-10.5 text-3.6 font-semibold leading-2.45em font-navbar',
-    'lg:(uno-desktop-column text-4 bottom-[min(9.04rem+3.85vw,12.5rem)]) cjk:tracking-0.02em',
+    'order-3 mb-10.5 text-3.6 font-semibold leading-2.45em font-navbar lg:order-none',
+    'lg:text-4 cjk:tracking-0.02em',
   ]}
 >
-  <ul>
+  <details class="mobile-nav lg:hidden">
+    <summary class="mobile-nav-toggle w-full flex items-center justify-between border border-secondary/15 rounded-md px-3 py-2 c-secondary">
+      <span>{currentUI.menu || 'Menu'}</span>
+      <svg
+        class="mobile-nav-chevron h-3.5 w-3.5 transition-transform"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="m6 9 6 6 6-6"></path>
+      </svg>
+    </summary>
+    <ul class="mt-2">
+      {navItems.map(item => (
+        <li>
+          <a
+            href={getLocalizedPath(item.href)}
+            class={item.className}
+          >
+            {item.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </details>
+
+  <ul class="hidden lg:block">
     {navItems.map(item => (
       <li>
         <a
@@ -85,3 +115,17 @@ const navItems = [
     ))}
   </ul>
 </nav>
+
+<style>
+  .mobile-nav summary {
+    list-style: none;
+  }
+
+  .mobile-nav summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-nav[open] .mobile-nav-chevron {
+    transform: rotate(180deg);
+  }
+</style>

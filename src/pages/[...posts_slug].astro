@@ -5,8 +5,8 @@ import Comment from '@/components/Comment/Index.astro'
 import PostDate from '@/components/PostDate.astro'
 import TagList from '@/components/TagList.astro'
 import BackButton from '@/components/Widgets/BackButton.astro'
-import CopyLink from '@/components/Widgets/CopyLink.astro'
 import BookmarkButton from '@/components/Widgets/BookmarkButton.astro'
+import CopyLink from '@/components/Widgets/CopyLink.astro'
 import LikeButton from '@/components/Widgets/LikeButton.astro'
 import PostNav from '@/components/Widgets/PostNav.astro'
 import ReactionBar from '@/components/Widgets/ReactionBar.astro'
@@ -116,7 +116,6 @@ const currentUrl = `${themeConfig.site.url}${Astro.url.pathname}`
 <Layout
   postTitle={post.data.title}
   postDescription={description}
-  postSlug={post.id}
   supportedLangs={supportedLangs}
 >
   <article class="heti">
@@ -159,7 +158,7 @@ const currentUrl = `${themeConfig.site.url}${Astro.url.pathname}`
       <!-- Action Buttons -->
       <div class="mb-6 mt-8 flex flex-wrap items-center gap-4">
         <CopyLink url={postUrl} />
-        <BookmarkButton postSlug={slug} title={post.data.title} url={currentUrl} />
+        <BookmarkButton postSlug={slug} title={post.data.title} url={Astro.url.pathname} />
         <ShareButton title={post.data.title} url={currentUrl} />
         <LikeButton postSlug={slug} />
         <ReactionBar postSlug={slug} />

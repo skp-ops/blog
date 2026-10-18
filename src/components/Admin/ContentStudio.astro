@@ -95,18 +95,33 @@ const localizedLocales = locales.map(locale => ({
 
       <div class="studio-sidebar-footer">
         <span id="studio-synced-at">尚未同步</span>
-        <span class="studio-shortcuts" title="保存工作副本 / 打开 Git 提交">⌘S 保存 · ⌘↵ 提交</span>
+        <span class="studio-shortcuts" title="保存工作副本 / 专注写作 / 打开 Git 提交">⌘S 保存 · ⌘↵ 提交</span>
         <button id="studio-discard" class="studio-text-button" type="button" hidden>放弃修改</button>
       </div>
     </aside>
 
     <main class="studio-main">
+      <section id="studio-draft-recovery" class="studio-draft-recovery" aria-live="polite" hidden>
+        <div>
+          <strong>发现浏览器草稿</strong>
+          <p id="studio-draft-recovery-copy"></p>
+        </div>
+        <div class="studio-draft-recovery-actions">
+          <button id="studio-draft-recover" class="studio-button studio-button-primary" type="button">
+            恢复草稿
+          </button>
+          <button id="studio-draft-discard" class="studio-button studio-button-quiet" type="button">
+            丢弃
+          </button>
+        </div>
+      </section>
+
       <div id="studio-empty" class="studio-empty-state">
         <div class="studio-empty-mark" aria-hidden="true">⌘</div>
         <p class="studio-eyebrow">Local content studio</p>
         <h2>直接从仓库开始写作</h2>
         <p>
-          内容会实时从本地 src/content 读取。修改先保存在当前页面，
+          内容会实时从本地 src/content 读取。输入会自动保存在浏览器，
           最后一次性创建 Git 提交并推送到远端。
         </p>
         <div class="studio-empty-steps">
@@ -665,6 +680,17 @@ const localizedLocales = locales.map(locale => ({
     background: oklch(0.92 0.07 90 / 0.22);
   }
 
+  .studio-mini-badge.is-local-draft {
+    color: #1d4ed8;
+    border-color: oklch(0.58 0.16 255 / 0.28);
+    background: oklch(0.92 0.04 255 / 0.24);
+  }
+
+  .dark .studio-mini-badge.is-local-draft {
+    color: #93c5fd;
+    background: oklch(0.3 0.06 255 / 0.35);
+  }
+
   .studio-list-empty {
     display: grid;
     min-height: 9rem;
@@ -756,6 +782,59 @@ const localizedLocales = locales.map(locale => ({
     height: 100%;
     overflow-y: auto;
     padding: clamp(1.3rem, 3.2vw, 3.5rem);
+  }
+
+  .content-studio.is-focus-mode .studio-topbar,
+  .content-studio.is-focus-mode .studio-sidebar {
+    display: none;
+  }
+
+  .content-studio.is-focus-mode .studio-layout {
+    grid-template-columns: 1fr;
+    height: 100dvh;
+  }
+
+  .content-studio.is-focus-mode .studio-main {
+    width: 100%;
+    padding: clamp(1.5rem, 4vw, 4.5rem);
+  }
+
+  .content-studio.is-focus-mode .studio-editor {
+    width: min(100%, 68rem);
+  }
+
+  .studio-draft-recovery {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: min(100%, 58rem);
+    margin: 0 auto 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid oklch(0.74 0.14 78 / 0.35);
+    border-radius: 0.85rem;
+    background: oklch(0.94 0.05 88 / 0.3);
+  }
+
+  .studio-draft-recovery strong {
+    font-size: 0.78rem;
+  }
+
+  .studio-draft-recovery p {
+    margin-top: 0.2rem;
+    color: var(--studio-secondary);
+    font-size: 0.68rem;
+    line-height: 1.5;
+  }
+
+  .dark .studio-draft-recovery {
+    background: oklch(0.34 0.05 82 / 0.28);
+  }
+
+  .studio-draft-recovery-actions {
+    display: flex;
+    flex: none;
+    gap: 0.45rem;
   }
 
   .studio-empty-state {
@@ -869,6 +948,13 @@ const localizedLocales = locales.map(locale => ({
     flex-direction: column;
     align-items: flex-end;
     gap: 0.65rem;
+  }
+
+  .studio-editor-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.45rem;
   }
 
   .studio-editor-quick-save {
@@ -1284,11 +1370,21 @@ const localizedLocales = locales.map(locale => ({
   .studio-editor-meta {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 0.8rem;
     padding-top: 0.45rem;
     color: var(--studio-secondary);
     font-size: 0.64rem;
+  }
+
+  .studio-local-draft-status {
+    color: var(--studio-secondary);
+    font-family: var(--font-mono), monospace;
+    font-size: 0.6rem;
+  }
+
+  .studio-editor-reading-time {
+    margin-left: auto;
   }
 
   .studio-media-control {
@@ -1364,6 +1460,10 @@ const localizedLocales = locales.map(locale => ({
     font-size: 0.78rem !important;
     line-height: 1.75 !important;
     tab-size: 2;
+  }
+
+  .content-studio.is-focus-mode .studio-body-input {
+    min-height: clamp(28rem, 64vh, 60rem) !important;
   }
 
   .studio-editor-actions {
@@ -1740,6 +1840,17 @@ const localizedLocales = locales.map(locale => ({
     .studio-editor-heading-side {
       width: 100%;
       align-items: flex-start;
+    }
+
+    .studio-editor-heading-actions,
+    .studio-draft-recovery-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .studio-draft-recovery {
+      align-items: stretch;
+      flex-direction: column;
     }
 
     .studio-editor-state {

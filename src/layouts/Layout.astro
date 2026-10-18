@@ -26,13 +26,12 @@ import '@/styles/transition.css'
 interface Props {
   postTitle?: string
   postDescription?: string
-  postSlug?: string
   supportedLangs?: string[]
   bare?: boolean
   noindex?: boolean
 }
 
-const { postTitle, postDescription, postSlug, supportedLangs = [], bare = false, noindex = false } = Astro.props
+const { postTitle, postDescription, supportedLangs = [], bare = false, noindex = false } = Astro.props
 const { isPost } = getPageInfo(Astro.url.pathname)
 const fontStyle = themeConfig.global.fontStyle === 'serif' ? 'font-serif' : 'font-sans'
 const MarginBottom = isPost && themeConfig.comment?.enabled
@@ -47,7 +46,7 @@ const MarginBottom = isPost && themeConfig.comment?.enabled
     { 'scroll-smooth': isPost },
   ]}
 >
-  <Head {postTitle} {postDescription} {postSlug} {noindex} />
+  <Head {postTitle} {postDescription} {supportedLangs} {noindex} />
   <body>
     {bare
       ? (
@@ -57,21 +56,27 @@ const MarginBottom = isPost && themeConfig.comment?.enabled
           <>
             {isPost && <ReadingProgress />}
             <div
-              class="mx-auto max-w-205.848 min-h-vh w-full min-h-dvh"
+              class="mx-auto max-w-205.848 min-h-vh w-full flex flex-col min-h-dvh"
               p="x-[min(7.25vw,3.731rem)] y-10"
               lg="mx-[max(5.75rem,calc(50vw-34.25rem))] my-20 max-w-[min(calc(75vw-16rem),44rem)] min-h-full p-0"
             >
-              <Header />
-              <div class="mb-8 lg:mb-10">
+              <aside
+                class="contents lg:(fixed right-[max(5rem,calc(50vw-35rem))] top-20 max-h-[calc(100vh-6rem)] w-14rem flex flex-col overflow-y-auto scrollbar-hidden)"
+              >
+                <Header />
+                <Navbar />
+                <Button supportedLangs={supportedLangs} />
+              </aside>
+              <div class="order-2 mb-8 lg:order-none lg:mb-10">
                 <SearchBox />
               </div>
-              <Navbar />
-              <main class={MarginBottom}>
+              <main class:list={[MarginBottom, 'order-4 lg:order-none']}>
                 <slot />
               </main>
-              <Footer />
+              <div class="order-5 lg:order-none">
+                <Footer />
+              </div>
             </div>
-            <Button supportedLangs={supportedLangs} />
             <SoundEffect />
             <CodeCopyButton />
             <GithubCard />
