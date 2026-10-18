@@ -5,6 +5,7 @@ import type {
   StudioFileChange,
   StudioSnapshot,
 } from '@/types/studio'
+import { Buffer } from 'node:buffer'
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
@@ -18,7 +19,9 @@ const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
 const CONTENT_PATHS = [POSTS_ROOT, NOTES_ROOT, PHOTOS_PATH]
 const MAX_BODY_SIZE = 25 * 1024 * 1024
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const STUDIO_HEADER = 'x-content-studio'
+const UPLOAD_ASSET_PATTERN = /^public\/gallery\/uploads(?:\/[^/]+)*\/[^/]+\.(?:avif|gif|jpe?g|png|webp)$/i
 
 interface GitResult {
   code: number
@@ -183,10 +186,13 @@ function validateContentPath(value: unknown, action: StudioFileChange['action'])
   }
 
   const isMarkdown = /^src\/content\/(?:posts|notes)\/(?:[^/]+\/)*[^/]+\.(?:md|mdx)$/i.test(path)
-  if (!isMarkdown && path !== PHOTOS_PATH)
+  const isUploadAsset = UPLOAD_ASSET_PATTERN.test(path)
+  if (!isMarkdown && path !== PHOTOS_PATH && !isUploadAsset)
     throw new StudioHttpError(`只允许修改文章、说说和画廊内容：${path}`)
   if (path === PHOTOS_PATH && action === 'delete')
     throw new StudioHttpError('不能删除 photos.json，请单独删除画廊条目。')
+  if (isUploadAsset && action !== 'create')
+    throw new StudioHttpError('上传图片只支持新增文件。')
 
   return path
 }
@@ -212,6 +218,16 @@ async function atomicWrite(path: string, content: string) {
   await rename(temporaryPath, path)
 }
 
+async function atomicWriteBuffer(path: string, content: Buffer) {
+  await mkdir(dirname(path), { recursive: true })
+  const temporaryPath = join(
+    dirname(path),
+    `.${basename(path)}.studio-${randomUUID()}.tmp`,
+  )
+  await writeFile(temporaryPath, content)
+  await rename(temporaryPath, path)
+}
+
 async function applyFileChanges(
   root: string,
   changes: Array<StudioFileChange & { content?: string }>,
@@ -223,13 +239,20 @@ async function applyFileChanges(
     const absolutePath = resolve(root, change.path)
     const original = await readExistingFile(absolutePath)
     originals.set(change.path, original)
+    const isUploadAsset = UPLOAD_ASSET_PATTERN.test(change.path)
 
     if (change.action === 'create' && original !== null)
       throw new StudioHttpError(`文件已存在：${change.path}`, 409)
     if (change.action !== 'create' && original === null)
       throw new StudioHttpError(`文件不存在：${change.path}`, 409)
-    if (change.action !== 'delete' && change.content === original)
+    if (isUploadAsset) {
+      const buffer = Buffer.from(change.content || '', 'base64')
+      if (!buffer.length || buffer.length > MAX_IMAGE_SIZE)
+        throw new StudioHttpError(`图片大小无效：${change.path}`, 413)
+    }
+    else if (change.action !== 'delete' && change.content === original) {
       continue
+    }
 
     effective.push(change)
   }
@@ -243,6 +266,9 @@ async function applyFileChanges(
       const absolutePath = resolve(root, change.path)
       if (change.action === 'delete') {
         await unlink(absolutePath)
+      }
+      else if (UPLOAD_ASSET_PATTERN.test(change.path)) {
+        await atomicWriteBuffer(absolutePath, Buffer.from(change.content || '', 'base64'))
       }
       else {
         await atomicWrite(absolutePath, change.content || '')
@@ -309,6 +335,7 @@ function parseCommitRequest(value: unknown): StudioCommitRequest {
       path,
       action,
       content: action === 'delete' ? undefined : String(change.content),
+      encoding: UPLOAD_ASSET_PATTERN.test(path) ? 'base64' : 'utf8',
     }
   })
 

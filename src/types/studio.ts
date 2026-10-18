@@ -16,6 +16,7 @@ export interface StudioFileChange {
   path: string
   action: 'create' | 'update' | 'delete'
   content?: string
+  encoding?: 'utf8' | 'base64'
 }
 
 export interface StudioCommitRequest {

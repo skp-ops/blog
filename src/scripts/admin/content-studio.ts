@@ -1,8 +1,11 @@
 import type { StudioFileChange, StudioSnapshot } from '@/types/studio'
+import MarkdownIt from 'markdown-it'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { commitStudioChanges, getStudioSnapshot, StudioApiError } from './studio-client'
 
 type CollectionKey = 'posts' | 'notes' | 'photos'
+type EditorViewMode = 'edit' | 'split' | 'preview'
+type ListFilter = 'all' | 'draft' | 'changed'
 
 interface LocaleOption {
   value: string
@@ -49,10 +52,31 @@ interface ComputedChanges {
   rows: ChangeRow[]
 }
 
+interface PendingAsset {
+  path: string
+  content: string
+  previewUrl: string
+}
+
 const POSTS_ROOT = 'src/content/posts'
 const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
 const AUTO_SYNC_INTERVAL = 60_000
+const LIST_PAGE_SIZE = 80
+const EDITOR_VIEW_KEY = 'kun-blog-content-studio-view'
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/avif': 'avif',
+  'image/gif': 'gif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+const previewParser = new MarkdownIt({
+  html: false,
+  linkify: true,
+  typographer: true,
+})
 
 const collectionLabels: Record<CollectionKey, string> = {
   posts: '文章',
@@ -221,6 +245,7 @@ function mountContentStudio(root: HTMLElement) {
   const editorElement = getById<HTMLElement>('studio-editor')
   const toastElement = getById<HTMLElement>('studio-toast')
   const tabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.studio-tab'))
+  const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.studio-filter'))
 
   const commitDialog = getById<HTMLDialogElement>('studio-commit-dialog')
   const commitMessage = getById<HTMLInputElement>('studio-commit-message')
@@ -239,10 +264,22 @@ function mountContentStudio(root: HTMLElement) {
 
   let workspace: Workspace | null = null
   let activeCollection: CollectionKey = 'posts'
+  let activeFilter: ListFilter = 'all'
+  let editorViewMode = readEditorViewMode()
   let selectedKey: string | null = null
   let editorFormDirty = false
   let loading = false
+  let listLimit = LIST_PAGE_SIZE
+  let previewTimer = 0
   let toastTimer = 0
+  const pendingAssets = new Map<string, PendingAsset>()
+
+  function readEditorViewMode(): EditorViewMode {
+    const stored = localStorage.getItem(EDITOR_VIEW_KEY)
+    return stored === 'edit' || stored === 'preview' || stored === 'split'
+      ? stored
+      : 'split'
+  }
 
   function setConnection(mode: 'loading' | 'live' | 'error', text: string) {
     liveDot.className = 'studio-live-dot'
@@ -384,13 +421,37 @@ function mountContentStudio(root: HTMLElement) {
       }
     }
 
+    const referencedMedia = new Set(
+      allCurrentItems()
+        .filter(item => !item.isPending)
+        .flatMap(item => [item.data.image, item.data.thumbnail])
+        .filter((value): value is string => typeof value === 'string' && value.startsWith('/')),
+    )
+    for (const asset of pendingAssets.values()) {
+      const publicUrl = `/${asset.path.replace(/^public\//, '')}`
+      if (!referencedMedia.has(publicUrl))
+        continue
+
+      files.push({
+        path: asset.path,
+        action: 'create',
+        content: asset.content,
+        encoding: 'base64',
+      })
+      rows.push({
+        action: 'create',
+        path: asset.path,
+        label: publicUrl.split('/').pop() || '图片',
+      })
+    }
+
     return { files, rows }
   }
 
   function updateActionState() {
     const changes = computeChanges()
     const hasChanges = changes.files.length > 0
-    commitButton.disabled = loading || !workspace || !hasChanges
+    commitButton.disabled = loading || !workspace || (!hasChanges && !editorFormDirty)
     changeCount.textContent = String(changes.files.length)
     discardButton.hidden = !workspace || (!hasChanges && !editorFormDirty)
     createButton.disabled = loading || !workspace
@@ -428,9 +489,26 @@ function mountContentStudio(root: HTMLElement) {
           ...itemTags(item),
         ].some(value => value.toLowerCase().includes(query))
       })
+      .filter((item) => {
+        if (activeFilter === 'draft')
+          return Boolean(item.data.draft) || item.isPending
+        if (activeFilter === 'changed') {
+          const baseline = workspace?.baseline.get(item.key)
+          return item.isPending || !baseline || baseline.raw !== item.raw
+        }
+        return true
+      })
 
-    listLabel.textContent = `全部${collectionLabels[activeCollection]}`
-    resultCount.textContent = `${items.length} 条`
+    const filterLabel = activeFilter === 'draft'
+      ? '草稿'
+      : activeFilter === 'changed'
+        ? '有改动'
+        : '全部'
+    const visibleItems = items.slice(0, listLimit)
+    listLabel.textContent = `${filterLabel}${collectionLabels[activeCollection]}`
+    resultCount.textContent = items.length > visibleItems.length
+      ? `${visibleItems.length} / ${items.length} 条`
+      : `${items.length} 条`
     listElement.replaceChildren()
 
     if (!items.length) {
@@ -441,7 +519,7 @@ function mountContentStudio(root: HTMLElement) {
       return
     }
 
-    for (const item of items) {
+    for (const item of visibleItems) {
       const baseline = workspace.baseline.get(item.key)
       const changed = Boolean(baseline && baseline.raw !== item.raw)
       const isNew = !baseline
@@ -453,13 +531,28 @@ function mountContentStudio(root: HTMLElement) {
       button.classList.toggle('is-changed', changed)
       button.dataset.itemKey = item.key
 
+      const imageUrl = item.collection === 'photos' || item.collection === 'notes'
+        ? String(item.data.thumbnail || item.data.image || '')
+        : ''
+      if (imageUrl) {
+        const thumbnail = document.createElement('img')
+        thumbnail.className = 'studio-list-thumb'
+        thumbnail.src = imageUrl
+        thumbnail.alt = ''
+        thumbnail.loading = 'lazy'
+        button.classList.add('has-thumb')
+        button.appendChild(thumbnail)
+      }
+
       const title = document.createElement('span')
       title.className = 'studio-list-title'
       title.textContent = itemTitle(item)
 
       const path = document.createElement('span')
       path.className = 'studio-list-path'
-      path.textContent = item.path
+      path.textContent = item.collection === 'photos'
+        ? [item.data.location, item.data.camera].filter(Boolean).join(' · ') || item.path
+        : item.path
 
       const foot = document.createElement('span')
       foot.className = 'studio-list-foot'
@@ -485,6 +578,18 @@ function mountContentStudio(root: HTMLElement) {
       button.append(title, path, foot)
       button.addEventListener('click', () => selectItem(item.key))
       listElement.appendChild(button)
+    }
+
+    if (items.length > visibleItems.length) {
+      const more = document.createElement('button')
+      more.type = 'button'
+      more.className = 'studio-list-more'
+      more.textContent = `再显示 ${Math.min(LIST_PAGE_SIZE, items.length - visibleItems.length)} 条`
+      more.addEventListener('click', () => {
+        listLimit += LIST_PAGE_SIZE
+        renderList()
+      })
+      listElement.appendChild(more)
     }
   }
 
@@ -522,6 +627,35 @@ function mountContentStudio(root: HTMLElement) {
     `
   }
 
+  function mediaField(
+    label: string,
+    id: string,
+    placeholder: string,
+    options: { wide?: boolean, required?: boolean } = {},
+  ) {
+    return `
+      <div class="studio-field${options.wide ? ' studio-field-wide' : ''}">
+        <span>
+          ${escapeHtml(label)}
+          <small>可粘贴地址或上传图片</small>
+        </span>
+        <div class="studio-media-control">
+          <input
+            id="${id}"
+            type="text"
+            autocomplete="off"
+            placeholder="${escapeHtml(placeholder)}"
+            ${options.required ? 'required' : ''}
+          />
+          <button class="studio-button studio-button-quiet" type="button" data-upload-for="${id}">
+            上传
+          </button>
+        </div>
+        <div class="studio-media-preview" data-preview-for="${id}" hidden></div>
+      </div>
+    `
+  }
+
   function markdownFields(item: ContentItem) {
     const pathInput = item.isPending
       ? field(
@@ -537,6 +671,14 @@ function mountContentStudio(root: HTMLElement) {
       : ''
 
     if (item.collection === 'posts') {
+      const advancedOpen = Boolean(
+        item.data.abbrlink
+        || item.data.series
+        || item.data.seriesTitle
+        || item.data.seriesOrder
+        || item.data.pin
+        || item.data.toc === false,
+      )
       return `
         <div class="studio-field-grid">
           ${field('标题', '<input id="studio-editor-title" type="text" autocomplete="off" required>', { wide: true })}
@@ -544,16 +686,24 @@ function mountContentStudio(root: HTMLElement) {
           ${field('首次发布时间', '<input id="studio-editor-date" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" required>')}
           ${field('更新时间', '<input id="studio-editor-updated" type="text" inputmode="numeric" placeholder="可留空">')}
           ${field('语言', `<select id="studio-editor-lang">${languageOptions()}</select>`)}
-          ${field('自定义链接', '<input id="studio-editor-abbrlink" type="text" autocomplete="off" placeholder="lowercase-slug">')}
           ${field('标签', '<input id="studio-editor-tags" type="text" autocomplete="off" placeholder="design, notes">')}
-          ${field('置顶权重', '<input id="studio-editor-pin" type="number" min="0" max="99" step="1">')}
-          ${field('系列标识', '<input id="studio-editor-series" type="text" autocomplete="off">')}
-          ${field('系列标题', '<input id="studio-editor-series-title" type="text" autocomplete="off">')}
-          ${field('系列序号', '<input id="studio-editor-series-order" type="number" min="0" step="1">')}
           ${field('摘要', '<textarea id="studio-editor-description" rows="3"></textarea>', { wide: true })}
           ${checkboxField('studio-editor-draft', '保存为草稿')}
-          ${checkboxField('studio-editor-toc', '显示文章目录')}
         </div>
+        <details class="studio-advanced" ${advancedOpen ? 'open' : ''}>
+          <summary>
+            <span>高级设置</span>
+            <small>链接、系列、置顶和文章目录</small>
+          </summary>
+          <div class="studio-field-grid">
+            ${field('自定义链接', '<input id="studio-editor-abbrlink" type="text" autocomplete="off" placeholder="lowercase-slug">')}
+            ${field('置顶权重', '<input id="studio-editor-pin" type="number" min="0" max="99" step="1">')}
+            ${field('系列标识', '<input id="studio-editor-series" type="text" autocomplete="off">')}
+            ${field('系列标题', '<input id="studio-editor-series-title" type="text" autocomplete="off">')}
+            ${field('系列序号', '<input id="studio-editor-series-order" type="number" min="0" step="1">')}
+            ${checkboxField('studio-editor-toc', '显示文章目录')}
+          </div>
+        </details>
       `
     }
 
@@ -563,7 +713,7 @@ function mountContentStudio(root: HTMLElement) {
         ${pathInput}
         ${field('日期', '<input id="studio-editor-date" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" required>')}
         ${field('语言', `<select id="studio-editor-lang">${languageOptions()}</select>`)}
-        ${field('配图地址', '<input id="studio-editor-image" type="text" autocomplete="off" placeholder="/gallery/photo.jpg">', { wide: true })}
+        ${mediaField('配图', 'studio-editor-image', '/gallery/photo.jpg', { wide: true })}
         ${field('标签', '<input id="studio-editor-tags" type="text" autocomplete="off" placeholder="life, photo">')}
         ${checkboxField('studio-editor-draft', '保存为草稿')}
         ${field('摘要 / 备注', '<textarea id="studio-editor-description" rows="3"></textarea>', { wide: true })}
@@ -571,24 +721,40 @@ function mountContentStudio(root: HTMLElement) {
     `
   }
 
-  function photoFields() {
+  function photoFields(item: ContentItem) {
+    const advancedOpen = Boolean(
+      item.data.camera
+      || item.data.lens
+      || item.data.iso
+      || item.data.aperture
+      || item.data.shutter
+      || item.data.focalLength,
+    )
     return `
       <div class="studio-field-grid">
         ${field('标题', '<input id="studio-editor-title" type="text" autocomplete="off" required>', { wide: true })}
         ${field('日期', '<input id="studio-editor-date" type="text" inputmode="numeric" placeholder="YYYY-MM-DD">')}
         ${field('图片 ID', '<input id="studio-editor-id" type="text" autocomplete="off" readonly>')}
-        ${field('大图地址', '<input id="studio-editor-image" type="text" autocomplete="off" placeholder="/gallery/photo.jpg" required>', { wide: true })}
-        ${field('缩略图地址', '<input id="studio-editor-thumbnail" type="text" autocomplete="off" placeholder="可留空">', { wide: true })}
+        ${mediaField('大图', 'studio-editor-image', '/gallery/photo.jpg', { wide: true, required: true })}
+        ${mediaField('缩略图', 'studio-editor-thumbnail', '可留空，默认使用大图', { wide: true })}
         ${field('标签', '<input id="studio-editor-tags" type="text" autocomplete="off" placeholder="street, night">')}
         ${field('地点', '<input id="studio-editor-location" type="text" autocomplete="off">')}
-        ${field('相机', '<input id="studio-editor-camera" type="text" autocomplete="off">')}
-        ${field('镜头', '<input id="studio-editor-lens" type="text" autocomplete="off">')}
-        ${field('ISO', '<input id="studio-editor-iso" type="text" autocomplete="off" inputmode="numeric">')}
-        ${field('光圈', '<input id="studio-editor-aperture" type="text" autocomplete="off" placeholder="f/2.8">')}
-        ${field('快门', '<input id="studio-editor-shutter" type="text" autocomplete="off" placeholder="1/125s">')}
-        ${field('焦距', '<input id="studio-editor-focal-length" type="text" autocomplete="off" placeholder="35mm">')}
         ${field('描述', '<textarea id="studio-editor-description" rows="4"></textarea>', { wide: true })}
       </div>
+      <details class="studio-advanced" ${advancedOpen ? 'open' : ''}>
+        <summary>
+          <span>拍摄信息</span>
+          <small>相机、镜头和曝光参数</small>
+        </summary>
+        <div class="studio-field-grid">
+          ${field('相机', '<input id="studio-editor-camera" type="text" autocomplete="off">')}
+          ${field('镜头', '<input id="studio-editor-lens" type="text" autocomplete="off">')}
+          ${field('ISO', '<input id="studio-editor-iso" type="text" autocomplete="off" inputmode="numeric">')}
+          ${field('光圈', '<input id="studio-editor-aperture" type="text" autocomplete="off" placeholder="f/2.8">')}
+          ${field('快门', '<input id="studio-editor-shutter" type="text" autocomplete="off" placeholder="1/125s">')}
+          ${field('焦距', '<input id="studio-editor-focal-length" type="text" autocomplete="off" placeholder="35mm">')}
+        </div>
+      </details>
     `
   }
 
@@ -604,6 +770,326 @@ function mountContentStudio(root: HTMLElement) {
       input.checked = Boolean(checked)
   }
 
+  function updateWordCount() {
+    const body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement | null)?.value || ''
+    const text = body
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/[#>*_`~()[\]{}]/g, ' ')
+      .replace(/\s+/g, '')
+    const characters = [...text].length
+    const minutes = Math.max(1, Math.ceil(characters / 400))
+    const count = document.getElementById('studio-editor-count')
+    const reading = document.getElementById('studio-editor-reading-time')
+    if (count)
+      count.textContent = `${characters} 字`
+    if (reading)
+      reading.textContent = `约 ${minutes} 分钟读完`
+  }
+
+  function updateMarkdownPreview(item: ContentItem) {
+    if (item.collection === 'photos')
+      return
+
+    const preview = document.getElementById('studio-preview-doc')
+    const body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement | null)?.value || ''
+    if (!preview)
+      return
+
+    preview.replaceChildren()
+    const header = document.createElement('div')
+    header.className = 'studio-preview-header'
+
+    const title = document.createElement('div')
+    title.className = 'studio-preview-title'
+    title.textContent = inputValue('studio-editor-title') || `未命名${collectionLabels[item.collection]}`
+
+    const meta = document.createElement('div')
+    meta.className = 'studio-preview-meta'
+    const date = document.createElement('span')
+    date.textContent = formatDate(itemDate(item))
+    meta.appendChild(date)
+    for (const tag of parseTags(inputValue('studio-editor-tags'))) {
+      const badge = document.createElement('span')
+      badge.className = 'studio-preview-tag'
+      badge.textContent = tag
+      meta.appendChild(badge)
+    }
+    header.append(title, meta)
+    preview.appendChild(header)
+
+    if (item.collection === 'notes') {
+      const imageUrl = inputValue('studio-editor-image')
+      if (imageUrl) {
+        const image = document.createElement('img')
+        image.className = 'studio-preview-cover'
+        image.src = imageUrl
+        image.alt = inputValue('studio-editor-title')
+        image.loading = 'lazy'
+        preview.appendChild(image)
+      }
+    }
+
+    const content = document.createElement('div')
+    content.className = 'studio-preview-content'
+    if (body.trim()) {
+      content.innerHTML = previewParser.render(body)
+      const collectionRoot = item.collection === 'posts' ? POSTS_ROOT : NOTES_ROOT
+      const directory = item.path
+        .slice(collectionRoot.length + 1)
+        .split('/')
+        .slice(0, -1)
+        .join('/')
+      const assetBase = `/${collectionRoot}/${directory ? `${directory}/` : ''}`
+      for (const image of Array.from(content.querySelectorAll('img'))) {
+        const source = image.getAttribute('src') || ''
+        if (
+          source
+          && !source.startsWith('/')
+          && !/^(?:[a-z]+:|#)/i.test(source)
+        ) {
+          image.src = `${assetBase}${source.replace(/^\.\//, '')}`
+        }
+      }
+    }
+    else {
+      const empty = document.createElement('p')
+      empty.className = 'studio-preview-empty'
+      empty.textContent = '开始输入正文后，这里会显示实时预览。'
+      content.appendChild(empty)
+    }
+    preview.appendChild(content)
+    updateWordCount()
+  }
+
+  function schedulePreview(item: ContentItem) {
+    window.clearTimeout(previewTimer)
+    previewTimer = window.setTimeout(() => updateMarkdownPreview(item), 120)
+  }
+
+  function setEditorView(mode: EditorViewMode) {
+    editorViewMode = mode
+    localStorage.setItem(EDITOR_VIEW_KEY, mode)
+    editorElement.dataset.view = mode
+    for (const button of Array.from(editorElement.querySelectorAll<HTMLButtonElement>('[data-editor-view]')))
+      button.classList.toggle('is-active', button.dataset.editorView === mode)
+  }
+
+  function updateMediaPreview(id: string) {
+    const container = document.querySelector<HTMLElement>(`[data-preview-for="${id}"]`)
+    const input = document.getElementById(id) as HTMLInputElement | null
+    if (!container || !input)
+      return
+
+    const value = input.value.trim()
+    container.replaceChildren()
+    if (!value) {
+      container.hidden = true
+      return
+    }
+
+    const pending = pendingAssets.get(value)
+    const image = document.createElement('img')
+    image.src = pending?.previewUrl || value
+    image.alt = ''
+    image.loading = 'lazy'
+    image.addEventListener('error', () => {
+      image.style.display = 'none'
+    })
+
+    const copy = document.createElement('div')
+    copy.className = 'studio-media-preview-copy'
+    const name = document.createElement('strong')
+    name.textContent = value.split('/').pop() || value
+    copy.appendChild(name)
+
+    const status = document.createElement('span')
+    status.textContent = pending ? '新图片，提交时一并写入' : '本地图片路径'
+    if (pending)
+      status.className = 'studio-pending-asset'
+    copy.appendChild(status)
+
+    container.append(image, copy)
+    container.hidden = false
+  }
+
+  function readFileAsDataUrl(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.addEventListener('load', () => resolve(String(reader.result || '')))
+      reader.addEventListener('error', () => reject(reader.error || new Error('图片读取失败。')))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function importImageFile(file: File, targetId: string) {
+    const extension = IMAGE_EXTENSIONS[file.type]
+      || file.name.toLowerCase().match(/\.(avif|gif|jpe?g|png|webp)$/)?.[1]?.replace('jpeg', 'jpg')
+    if (!extension || !['avif', 'gif', 'jpg', 'png', 'webp'].includes(extension))
+      throw new Error('只支持 AVIF、GIF、JPG、PNG 和 WebP 图片。')
+    if (file.size > MAX_IMAGE_SIZE)
+      throw new Error('图片不能超过 10 MB。')
+
+    const dataUrl = await readFileAsDataUrl(file)
+    const base64 = dataUrl.split(',')[1]
+    if (!base64)
+      throw new Error('图片内容读取失败。')
+
+    const month = localDateString().slice(0, 7)
+    const previousImage = (document.getElementById('studio-editor-image') as HTMLInputElement | null)?.value
+    const baseName = file.name
+      .replace(/\.[^.]+$/, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 56) || 'image'
+    const assetPath = `public/gallery/uploads/${month}/${timestampSlug()}-${randomId().slice(0, 8)}-${baseName}.${extension}`
+    const publicUrl = `/${assetPath.replace(/^public\//, '')}`
+    pendingAssets.set(publicUrl, {
+      path: assetPath,
+      content: base64,
+      previewUrl: dataUrl,
+    })
+
+    setInputValue(targetId, publicUrl)
+    const target = document.getElementById(targetId) as HTMLInputElement | null
+    target?.dispatchEvent(new Event('input', { bubbles: true }))
+
+    if (targetId === 'studio-editor-image') {
+      const thumbnail = document.getElementById('studio-editor-thumbnail') as HTMLInputElement | null
+      if (thumbnail && (!thumbnail.value.trim() || thumbnail.value === previousImage)) {
+        thumbnail.value = publicUrl
+        thumbnail.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    }
+
+    updateMediaPreview(targetId)
+    showToast('图片已加入待提交文件，提交 Git 时会一起上传。')
+  }
+
+  function initializeMediaFields() {
+    for (const button of Array.from(editorElement.querySelectorAll<HTMLButtonElement>('[data-upload-for]'))) {
+      const targetId = button.dataset.uploadFor
+      if (!targetId)
+        continue
+      const control = button.closest<HTMLElement>('.studio-media-control')
+      button.addEventListener('click', () => {
+        const picker = document.createElement('input')
+        picker.type = 'file'
+        picker.accept = 'image/avif,image/gif,image/jpeg,image/png,image/webp'
+        picker.addEventListener('change', () => {
+          const file = picker.files?.[0]
+          if (!file)
+            return
+          void importImageFile(file, targetId).catch((error) => {
+            showToast(error instanceof Error ? error.message : String(error), true)
+          })
+        })
+        picker.click()
+      })
+
+      if (control) {
+        control.addEventListener('dragover', (event) => {
+          if (event.dataTransfer?.types.includes('Files')) {
+            event.preventDefault()
+            control.classList.add('is-dragover')
+          }
+        })
+        control.addEventListener('dragleave', () => control.classList.remove('is-dragover'))
+        control.addEventListener('drop', (event) => {
+          event.preventDefault()
+          control.classList.remove('is-dragover')
+          const file = event.dataTransfer?.files?.[0]
+          if (file) {
+            void importImageFile(file, targetId).catch(error =>
+              showToast(error instanceof Error ? error.message : String(error), true),
+            )
+          }
+        })
+      }
+    }
+
+    for (const id of ['studio-editor-image', 'studio-editor-thumbnail']) {
+      const input = document.getElementById(id) as HTMLInputElement | null
+      if (!input)
+        continue
+      input.addEventListener('input', () => updateMediaPreview(id))
+      updateMediaPreview(id)
+    }
+  }
+
+  function applyMarkdownAction(action: string) {
+    const textarea = document.getElementById('studio-editor-body') as HTMLTextAreaElement | null
+    if (!textarea)
+      return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = textarea.value.slice(start, end)
+    let replacement = selected
+    let selectionStart = start
+    let selectionEnd = end
+
+    const wrap = (before: string, after: string, placeholder: string) => {
+      const content = selected || placeholder
+      replacement = `${before}${content}${after}`
+      selectionStart = start + before.length
+      selectionEnd = selectionStart + content.length
+    }
+    const prefixLines = (prefix: (index: number) => string) => {
+      const content = selected || '内容'
+      replacement = content
+        .split('\n')
+        .map((line, index) => `${prefix(index)}${line}`)
+        .join('\n')
+      selectionStart = start
+      selectionEnd = start + replacement.length
+    }
+
+    if (action === 'bold') {
+      wrap('**', '**', '粗体文字')
+    }
+    else if (action === 'italic') {
+      wrap('*', '*', '斜体文字')
+    }
+    else if (action === 'code') {
+      wrap('`', '`', '代码')
+    }
+    else if (action === 'h2') {
+      prefixLines(() => '## ')
+    }
+    else if (action === 'quote') {
+      prefixLines(() => '> ')
+    }
+    else if (action === 'ul') {
+      prefixLines(() => '- ')
+    }
+    else if (action === 'ol') {
+      prefixLines(index => `${index + 1}. `)
+    }
+    else if (action === 'link') {
+      wrap('[', '](https://example.com)', '链接文字')
+    }
+    else if (action === 'image') {
+      wrap('![', '](/gallery/photo.jpg)', '图片描述')
+    }
+    else if (action === 'codeblock') {
+      replacement = `\n\`\`\`\n${selected || '代码'}\n\`\`\`\n`
+      selectionStart = start + 5
+      selectionEnd = selectionStart + (selected || '代码').length
+    }
+    else if (action === 'divider') {
+      replacement = '\n\n---\n\n'
+      selectionStart = start + replacement.length
+      selectionEnd = selectionStart
+    }
+
+    textarea.setRangeText(replacement, start, end, 'end')
+    textarea.focus()
+    textarea.setSelectionRange(selectionStart, selectionEnd)
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
   function renderEditor() {
     const item = findItem(selectedKey)
     emptyState.hidden = Boolean(item)
@@ -613,6 +1099,7 @@ function mountContentStudio(root: HTMLElement) {
       editorElement.replaceChildren()
       return
     }
+    editorElement.dataset.view = editorViewMode
 
     const baseline = workspace?.baseline.get(item.key)
     const changed = Boolean(baseline && baseline.raw !== item.raw)
@@ -625,11 +1112,43 @@ function mountContentStudio(root: HTMLElement) {
           <section class="studio-editor-section">
             <div class="studio-editor-section-heading">
               <h3>Markdown 正文</h3>
-              <span>直接编辑文件原文</span>
+              <div class="studio-editor-section-heading-right">
+                <span id="studio-editor-count"></span>
+                <div class="studio-view-switch" role="group" aria-label="编辑视图">
+                  <button type="button" data-editor-view="edit">编辑</button>
+                  <button type="button" data-editor-view="split">分栏</button>
+                  <button type="button" data-editor-view="preview">预览</button>
+                </div>
+              </div>
             </div>
-            <label class="studio-field">
-              <textarea id="studio-editor-body" class="studio-body-input" spellcheck="false"></textarea>
-            </label>
+            <div class="studio-markdown-toolbar" role="toolbar" aria-label="Markdown 格式化">
+              <button type="button" data-md-action="h2" title="二级标题">H2</button>
+              <button type="button" data-md-action="bold" title="粗体"><strong>B</strong></button>
+              <button type="button" data-md-action="italic" title="斜体"><em>I</em></button>
+              <button type="button" data-md-action="code" title="行内代码">&lt;/&gt;</button>
+              <span class="studio-toolbar-separator" aria-hidden="true"></span>
+              <button type="button" data-md-action="link" title="链接">↗</button>
+              <button type="button" data-md-action="image" title="图片">IMG</button>
+              <span class="studio-toolbar-separator" aria-hidden="true"></span>
+              <button type="button" data-md-action="quote" title="引用">❝</button>
+              <button type="button" data-md-action="ul" title="无序列表">•</button>
+              <button type="button" data-md-action="ol" title="有序列表">1.</button>
+              <button type="button" data-md-action="codeblock" title="代码块">&#96;&#96;&#96;</button>
+              <span class="studio-toolbar-separator" aria-hidden="true"></span>
+              <button type="button" data-md-action="divider" title="分隔线">—</button>
+            </div>
+            <div class="studio-body-grid">
+              <div class="studio-field studio-editor-pane">
+                <textarea id="studio-editor-body" class="studio-body-input" spellcheck="false"></textarea>
+              </div>
+              <div class="studio-preview-panel">
+                <div id="studio-preview-doc"></div>
+              </div>
+            </div>
+            <div class="studio-editor-meta">
+              <span>Markdown 实时预览</span>
+              <span id="studio-editor-reading-time"></span>
+            </div>
           </section>
         `
 
@@ -640,10 +1159,15 @@ function mountContentStudio(root: HTMLElement) {
           <h2></h2>
           <span class="studio-editor-path"></span>
         </div>
-        <div class="studio-editor-state"></div>
+        <div class="studio-editor-heading-side">
+          <div class="studio-editor-state"></div>
+          <button id="studio-editor-quick-save" class="studio-button studio-button-primary studio-editor-quick-save" type="button">
+            保存工作副本
+          </button>
+        </div>
       </div>
       <form id="studio-editor-form" class="studio-editor-form" novalidate>
-        ${item.collection === 'photos' ? photoFields() : markdownFields(item)}
+        ${item.collection === 'photos' ? photoFields(item) : markdownFields(item)}
         ${bodySection}
         <div id="studio-editor-message" class="studio-form-message" role="alert"></div>
         <div class="studio-editor-actions">
@@ -726,12 +1250,19 @@ function mountContentStudio(root: HTMLElement) {
     setInputValue('studio-editor-body', item.body)
     editorFormDirty = false
     updateActionState()
+    setEditorView(editorViewMode)
+    updateMarkdownPreview(item)
+    initializeMediaFields()
 
     const form = getById<HTMLFormElement>('studio-editor-form')
     const formMessage = getById<HTMLElement>('studio-editor-message')
     const deleteButton = getById<HTMLButtonElement>('studio-editor-delete')
+    const quickSaveButton = getById<HTMLButtonElement>('studio-editor-quick-save')
 
     form.addEventListener('input', () => {
+      if (heading)
+        heading.textContent = inputValue('studio-editor-title') || `未命名${collectionLabels[item.collection]}`
+      schedulePreview(item)
       if (!editorFormDirty) {
         editorFormDirty = true
         formMessage.textContent = '表单有未保存的字段，保存后才会加入 Git 提交。'
@@ -746,6 +1277,28 @@ function mountContentStudio(root: HTMLElement) {
       formMessage.classList.remove('is-info')
       saveEditor(item, formMessage)
     })
+
+    quickSaveButton.addEventListener('click', () => {
+      formMessage.textContent = ''
+      formMessage.classList.remove('is-info')
+      saveEditor(item, formMessage)
+    })
+
+    for (const button of Array.from(editorElement.querySelectorAll<HTMLButtonElement>('[data-editor-view]'))) {
+      button.addEventListener('click', () => {
+        const mode = button.dataset.editorView
+        if (mode === 'edit' || mode === 'split' || mode === 'preview') {
+          setEditorView(mode)
+          updateMarkdownPreview(item)
+        }
+      })
+    }
+
+    for (const button of Array.from(editorElement.querySelectorAll<HTMLButtonElement>('[data-md-action]'))) {
+      button.addEventListener('click', () => {
+        applyMarkdownAction(button.dataset.mdAction || '')
+      })
+    }
 
     deleteButton.addEventListener('click', () => deleteItem(item))
   }
@@ -782,9 +1335,13 @@ function mountContentStudio(root: HTMLElement) {
     showToast(message, true)
   }
 
-  function saveEditor(item: ContentItem, formMessage: HTMLElement) {
+  function saveEditor(
+    item: ContentItem,
+    formMessage: HTMLElement,
+    options: { quiet?: boolean } = {},
+  ) {
     if (!workspace)
-      return
+      return false
 
     try {
       const title = inputValue('studio-editor-title')
@@ -861,10 +1418,13 @@ function mountContentStudio(root: HTMLElement) {
       renderList()
       renderEditor()
       updateActionState()
-      showToast('已保存到工作副本。提交 Git 后才会发布。')
+      if (!options.quiet)
+        showToast('已保存到工作副本。提交 Git 后才会发布。')
+      return true
     }
     catch (error) {
       showEditorError(formMessage, error instanceof Error ? error.message : String(error))
+      return false
     }
   }
 
@@ -1013,6 +1573,7 @@ function mountContentStudio(root: HTMLElement) {
 
   function renderEverything() {
     updateCounts()
+    updateFilters()
     renderList()
     renderEditor()
     updateActionState()
@@ -1029,6 +1590,11 @@ function mountContentStudio(root: HTMLElement) {
       button.classList.toggle('is-active', active)
       button.setAttribute('aria-selected', String(active))
     }
+  }
+
+  function updateFilters() {
+    for (const button of filterButtons)
+      button.classList.toggle('is-active', button.dataset.filter === activeFilter)
   }
 
   async function loadContent(options: {
@@ -1154,6 +1720,8 @@ function mountContentStudio(root: HTMLElement) {
         baseline,
         loadedAt: new Date(),
       }
+      pendingAssets.clear()
+      listLimit = LIST_PAGE_SIZE
       selectedKey = previousSelection && findItem(previousSelection)
         ? previousSelection
         : null
@@ -1189,6 +1757,13 @@ function mountContentStudio(root: HTMLElement) {
       return
     }
 
+    if (editorFormDirty) {
+      const item = findItem(selectedKey)
+      const message = document.getElementById('studio-editor-message')
+      if (item && message && !saveEditor(item, message, { quiet: true }))
+        return
+    }
+
     const changes = computeChanges()
     if (!changes.files.length) {
       showToast('当前没有需要提交的修改。')
@@ -1214,7 +1789,10 @@ function mountContentStudio(root: HTMLElement) {
       commitChanges.appendChild(element)
     }
 
-    commitFileCount.textContent = `${changes.files.length} 个文件`
+    const createCount = changes.files.filter(change => change.action === 'create').length
+    const updateCount = changes.files.filter(change => change.action === 'update').length
+    const deleteCount = changes.files.filter(change => change.action === 'delete').length
+    commitFileCount.textContent = `${changes.files.length} 个文件 · +${createCount} ~${updateCount} -${deleteCount}`
     commitMessage.value = 'content: update blog content'
     commitHint.textContent = `将把 ${changes.files.length} 个文件写入本地工作区，创建一次 Git 提交，并尝试推送到远端。`
     commitTarget.textContent = `${workspace.branch} · ${workspace.headSha.slice(0, 7)}`
@@ -1335,6 +1913,7 @@ function mountContentStudio(root: HTMLElement) {
       activeCollection = collection
       selectedKey = null
       editorFormDirty = false
+      listLimit = LIST_PAGE_SIZE
       searchInput.value = ''
       updateTabs()
       renderList()
@@ -1343,7 +1922,22 @@ function mountContentStudio(root: HTMLElement) {
     })
   })
 
-  searchInput.addEventListener('input', renderList)
+  filterButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const filter = button.dataset.filter
+      if (filter !== 'all' && filter !== 'draft' && filter !== 'changed')
+        return
+      activeFilter = filter
+      listLimit = LIST_PAGE_SIZE
+      updateFilters()
+      renderList()
+    })
+  })
+
+  searchInput.addEventListener('input', () => {
+    listLimit = LIST_PAGE_SIZE
+    renderList()
+  })
   createButton.addEventListener('click', createItem)
   syncButton.addEventListener('click', manualSync)
   discardButton.addEventListener('click', discardChanges)
@@ -1362,6 +1956,27 @@ function mountContentStudio(root: HTMLElement) {
         dialog.close()
     })
   }
+
+  window.addEventListener('keydown', (event) => {
+    if (!(event.metaKey || event.ctrlKey))
+      return
+
+    const key = event.key.toLowerCase()
+    if (key === 's') {
+      const item = findItem(selectedKey)
+      const formMessage = document.getElementById('studio-editor-message')
+      if (item && formMessage) {
+        event.preventDefault()
+        formMessage.textContent = ''
+        formMessage.classList.remove('is-info')
+        saveEditor(item, formMessage)
+      }
+    }
+    else if (key === 'enter' && !commitDialog.open) {
+      event.preventDefault()
+      openCommitDialog()
+    }
+  })
 
   window.addEventListener('beforeunload', (event) => {
     if (computeChanges().files.length || editorFormDirty) {
