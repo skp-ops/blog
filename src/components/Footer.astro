@@ -1,11 +1,12 @@
 ---
-import { themeConfig } from '@/config'
+import VisitorCounter from '@/components/Widgets/VisitorCounter.astro'
+import { base, themeConfig } from '@/config'
 import { getLangFromPath } from '@/i18n/lang'
 import { getLocalizedPath } from '@/i18n/path'
-import VisitorCounter from '@/components/Widgets/VisitorCounter.astro'
 
 const { author } = themeConfig.site
 const { links: socialLinks, startYear } = themeConfig.footer
+const admin = themeConfig.admin
 
 const currentYear = new Date().getFullYear()
 const year = Number(startYear) === currentYear ? startYear : `${startYear}-${currentYear}`
@@ -38,6 +39,12 @@ const footerLinkClass = 'highlight-hover py-0.8 transition-colors after:bottom-0
 
   <p>
     © {year} {author}
+    {admin?.enabled && admin.footerLink && (
+      <>
+        <span class="mx-1 opacity-30" aria-hidden="true">·</span>
+        <a class={footerLinkClass} href={`${base}/admin/`} title="Git 内容工作台">Studio</a>
+      </>
+    )}
   </p>
 
   <VisitorCounter />

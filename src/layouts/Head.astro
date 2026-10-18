@@ -9,10 +9,11 @@ interface Props {
   postTitle?: string
   postDescription?: string
   postSlug?: string
+  noindex?: boolean
 }
 
 // Props and Language
-const { postTitle, postDescription, postSlug } = Astro.props
+const { postTitle, postDescription, postSlug, noindex = false } = Astro.props
 const { currentLang } = getPageInfo(Astro.url.pathname)
 const currentUI = ui[currentLang as keyof typeof ui] ?? {}
 const lang = currentLang === defaultLocale ? '' : `${currentLang}/`
@@ -53,6 +54,7 @@ const pageImage = postSlug
 <meta name="author" content={author} />
 <meta name="generator" content={Astro.generator} />
 <meta name="theme-color" content={metaTheme} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
 
 <!-- Preload -->
 <link rel="preload" href={`${base}/fonts/EarlySummer-VF-Split/EarlySummer-VF-Subset.woff2`} as="font" type="font/woff2" crossorigin />

@@ -59,7 +59,9 @@ export default defineConfig({
         forward: ['dataLayer.push', 'gtag'],
       },
     }),
-    sitemap(),
+    sitemap({
+      filter: page => !page.endsWith('/admin/'),
+    }),
     Compress({
       CSS: true,
       HTML: true,

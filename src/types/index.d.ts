@@ -88,6 +88,12 @@ export interface ThemeConfig {
     customGoogleAnalyticsJS?: string
     customUmamiAnalyticsJS?: string
   }
+  admin?: {
+    enabled: boolean
+    repo: string
+    branch: string
+    footerLink: boolean
+  }
 }
 
 export default ThemeConfig

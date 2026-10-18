@@ -5,11 +5,11 @@ import Header from '@/components/Header.astro'
 import Navbar from '@/components/Navbar.astro'
 import SearchBox from '@/components/SearchBox.astro'
 import CodeCopyButton from '@/components/Widgets/CodeCopyButton.astro'
+import FontSizeControl from '@/components/Widgets/FontSizeControl.astro'
 import GithubCard from '@/components/Widgets/GithubCard.astro'
 import ImageZoom from '@/components/Widgets/ImageZoom.astro'
 import MediaEmbed from '@/components/Widgets/MediaEmbed.astro'
 import ReadingProgress from '@/components/Widgets/ReadingProgress.astro'
-import FontSizeControl from '@/components/Widgets/FontSizeControl.astro'
 import SoundEffect from '@/components/Widgets/SoundEffect.astro'
 import themeConfig from '@/config'
 import Head from '@/layouts/Head.astro'
@@ -28,9 +28,11 @@ interface Props {
   postDescription?: string
   postSlug?: string
   supportedLangs?: string[]
+  bare?: boolean
+  noindex?: boolean
 }
 
-const { postTitle, postDescription, postSlug, supportedLangs = [] } = Astro.props
+const { postTitle, postDescription, postSlug, supportedLangs = [], bare = false, noindex = false } = Astro.props
 const { isPost } = getPageInfo(Astro.url.pathname)
 const fontStyle = themeConfig.global.fontStyle === 'serif' ? 'font-serif' : 'font-sans'
 const MarginBottom = isPost && themeConfig.comment?.enabled
@@ -45,30 +47,38 @@ const MarginBottom = isPost && themeConfig.comment?.enabled
     { 'scroll-smooth': isPost },
   ]}
 >
-  <Head {postTitle} {postDescription} {postSlug} />
+  <Head {postTitle} {postDescription} {postSlug} {noindex} />
   <body>
-    {isPost && <ReadingProgress />}
-    <div
-      class="mx-auto max-w-205.848 min-h-vh w-full min-h-dvh"
-      p="x-[min(7.25vw,3.731rem)] y-10"
-      lg="mx-[max(5.75rem,calc(50vw-34.25rem))] my-20 max-w-[min(calc(75vw-16rem),44rem)] min-h-full p-0"
-    >
-      <Header />
-      <div class="mb-8 lg:mb-10">
-        <SearchBox />
-      </div>
-      <Navbar />
-      <main class={MarginBottom}>
-        <slot />
-      </main>
-      <Footer />
-    </div>
-    <Button supportedLangs={supportedLangs} />
-    <SoundEffect />
-    <CodeCopyButton />
-    <GithubCard />
-    <MediaEmbed />
-    <ImageZoom />
-    <FontSizeControl show={isPost} />
+    {bare
+      ? (
+          <slot />
+        )
+      : (
+          <>
+            {isPost && <ReadingProgress />}
+            <div
+              class="mx-auto max-w-205.848 min-h-vh w-full min-h-dvh"
+              p="x-[min(7.25vw,3.731rem)] y-10"
+              lg="mx-[max(5.75rem,calc(50vw-34.25rem))] my-20 max-w-[min(calc(75vw-16rem),44rem)] min-h-full p-0"
+            >
+              <Header />
+              <div class="mb-8 lg:mb-10">
+                <SearchBox />
+              </div>
+              <Navbar />
+              <main class={MarginBottom}>
+                <slot />
+              </main>
+              <Footer />
+            </div>
+            <Button supportedLangs={supportedLangs} />
+            <SoundEffect />
+            <CodeCopyButton />
+            <GithubCard />
+            <MediaEmbed />
+            <ImageZoom />
+            <FontSizeControl show={isPost} />
+          </>
+        )}
   </body>
 </html>

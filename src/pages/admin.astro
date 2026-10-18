@@ -1,0 +1,32 @@
+---
+import ContentStudio from '@/components/Admin/ContentStudio.astro'
+import { allLocales, base, defaultLocale, themeConfig } from '@/config'
+import Layout from '@/layouts/Layout.astro'
+
+const admin = themeConfig.admin
+if (!admin?.enabled)
+  Astro.response.status = 404
+---
+
+<Layout bare noindex>
+  {admin?.enabled
+    ? (
+        <ContentStudio
+          repo={admin.repo}
+          branch={admin.branch}
+          base={base}
+          locales={allLocales}
+          defaultLocale={defaultLocale}
+          siteTitle={themeConfig.site.title}
+        />
+      )
+    : (
+        <main class="grid place-items-center p-8 min-h-dvh">
+          <div class="max-w-lg text-center">
+            <p class="text-5 c-secondary font-mono">404</p>
+            <h1 class="mb-4 mt-2 text-8 c-primary font-bold">Content Studio 未启用</h1>
+            <a class="c-primary underline underline-offset-4" href={`${base}/`}>返回博客首页</a>
+          </div>
+        </main>
+      )}
+</Layout>
