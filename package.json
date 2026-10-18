@@ -6,6 +6,7 @@
   "repository": "https://github.com/radishzzz/astro-theme-retypeset",
   "scripts": {
     "dev": "astro check && astro dev",
+    "studio": "tsx scripts/content-studio.ts",
     "build": "astro check && astro build && tsx scripts/apply-lqip.ts",
     "preview": "astro preview",
     "astro": "astro",
@@ -41,7 +42,8 @@
     "sanitize-html": "^2.18.0",
     "sharp": "^0.35.5",
     "twikoo": "^1.7.24",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.1.0",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.4.1",
@@ -70,6 +72,7 @@
   },
   "pnpm": {
     "overrides": {
+      "@types/hast": "3.0.5",
       "canvaskit-wasm": "0.39.1"
     }
   },

@@ -6,6 +6,7 @@ image: /gallery/placeholder.svg
 tags:
   - demo
 draft: true
+lang: ""
 ---
 
 这是一条示例碎语。你可以在这里写一段文字，也可以配一张图片。

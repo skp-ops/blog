@@ -1,3 +1,4 @@
+import process from 'node:process'
 import cloudflare from '@astrojs/cloudflare'
 import mdx from '@astrojs/mdx'
 import partytown from '@astrojs/partytown'
@@ -12,6 +13,7 @@ import remarkMath from 'remark-math'
 import UnoCSS from 'unocss/astro'
 import { base, defaultLocale, themeConfig } from './src/config'
 import { langMap } from './src/i18n/config'
+import contentStudio from './src/integrations/content-studio'
 import { rehypeCodeCopyButton } from './src/plugins/rehype-code-copy-button.mjs'
 import { rehypeExternalLinks } from './src/plugins/rehype-external-links.mjs'
 import { rehypeHeadingAnchor } from './src/plugins/rehype-heading-anchor.mjs'
@@ -26,6 +28,7 @@ const { imageHostURL } = themeConfig.preload ?? {}
 const imageConfig = imageHostURL
   ? { image: { domains: [imageHostURL], remotePatterns: [{ protocol: 'https' }] } }
   : {}
+const studioMode = process.env.CONTENT_STUDIO === '1'
 
 export default defineConfig({
   site,
@@ -60,6 +63,7 @@ export default defineConfig({
       },
     }),
     sitemap(),
+    ...(studioMode ? [contentStudio()] : []),
     Compress({
       CSS: true,
       HTML: true,

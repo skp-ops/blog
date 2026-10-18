@@ -1,5 +1,6 @@
 ---
 import { defaultLocale, moreLocales } from '@/config'
+import { getPostPath } from '@/i18n/path'
 import Layout from '@/layouts/Layout.astro'
 import { getPosts } from '@/utils/content'
 import { countWords, formatNumber } from '@/utils/stats'
@@ -128,7 +129,7 @@ const months = monthNames[lang] || monthNames.en
               const day = post.data.published.getDate()
 
               return (
-                <a href={`/posts/${slug}/`} class="timeline-item">
+                <a href={getPostPath(slug, lang)} class="timeline-item">
                   <div class="timeline-dot"></div>
                   <div class="timeline-card">
                     <div class="timeline-day">{day}</div>

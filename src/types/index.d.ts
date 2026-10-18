@@ -70,6 +70,7 @@ export interface ThemeConfig {
     }
     googleAnalyticsID?: string
     umamiAnalyticsID?: string
+    defaultImage?: string
     follow?: {
       feedID?: string
       userID?: string

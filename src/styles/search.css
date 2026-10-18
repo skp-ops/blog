@@ -13,9 +13,14 @@
 
 .search-input {
   --at-apply: 'w-full uno-round-border border-secondary/20 bg-background c-primary';
-  --at-apply: 'px-10 py-2.5 text-3.5 outline-none transition-all';
+  --at-apply: 'pl-10 pr-18 py-2.5 text-3.5 outline-none transition-all';
   --at-apply: 'placeholder:c-secondary/60';
   --at-apply: 'focus:(border-primary/40 ring-2 ring-primary/10)';
+}
+
+.search-shortcut {
+  --at-apply: 'absolute right-3 z-1 c-secondary/50 pointer-events-none select-none';
+  --at-apply: 'border border-secondary/15 rounded px-1.5 py-0.5 text-[0.65rem] font-mono';
 }
 
 .search-clear {
@@ -123,6 +128,14 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .search-input {
+    --at-apply: 'pr-10';
+  }
+
+  .search-shortcut {
+    display: none;
+  }
+
   .search-results {
     --at-apply: 'max-h-[60vh]';
   }

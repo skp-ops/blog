@@ -44,8 +44,11 @@ function getThemeUrl() {
     : `${origin}${base}/giscus/theme-light.css`
 }
 
-function setupGiscus() {
-  const giscusContainer = document.getElementById('giscus')
+function loadGiscus(giscusContainer) {
+  if (giscusContainer.dataset.initializedPath === window.location.pathname)
+    return
+
+  giscusContainer.dataset.initializedPath = window.location.pathname
   giscusContainer.innerHTML = ''
 
   const currentPath = window.location.pathname
@@ -78,6 +81,14 @@ function setupGiscus() {
   script.src = 'https://giscus.app/client.js'
 
   giscusContainer.appendChild(script)
+}
+
+function setupGiscus() {
+  const giscusContainer = document.getElementById('giscus')
+  if (!giscusContainer || giscusContainer.dataset.initializedPath === window.location.pathname)
+    return
+
+  loadGiscus(giscusContainer)
 }
 
 function updateGiscusTheme() {
