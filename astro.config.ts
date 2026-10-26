@@ -2,6 +2,7 @@ import process from 'node:process'
 import cloudflare from '@astrojs/cloudflare'
 import mdx from '@astrojs/mdx'
 import partytown from '@astrojs/partytown'
+import react from '@astrojs/react'
 import sitemap from '@astrojs/sitemap'
 import Compress from 'astro-compress'
 import { defineConfig } from 'astro/config'
@@ -56,6 +57,7 @@ export default defineConfig({
     UnoCSS({
       injectReset: true,
     }),
+    react(),
     mdx(),
     partytown({
       config: {

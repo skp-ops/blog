@@ -1,0 +1,92 @@
+---
+import { getCollection } from 'astro:content'
+import getReadingTime from 'reading-time'
+import { PROFILE } from '@/components/landing/data'
+import LandingPage from '@/components/landing/LandingPage'
+import { defaultLocale, themeConfig } from '@/config'
+import { getPostPath } from '@/i18n/path'
+import Layout from '@/layouts/Layout.astro'
+import { getPostDescription } from '@/utils/description'
+import '@/styles/landing.css'
+import 'lenis/dist/lenis.css'
+
+const { light, dark } = themeConfig.color
+
+/**
+ * The landing palette is the blog palette. Both modes are declared in CSS and
+ * scoped to `.lp` / `html.dark .lp`, so the theme chosen on any other page is
+ * already correct on first paint — no JS, no flash, no local state.
+ */
+const landingTheme = `
+.lp {
+  --lp-bg: ${light.background};
+  --lp-fg: ${light.primary};
+  --lp-muted: ${light.secondary};
+  --lp-glow: oklch(0.90 0.06 45 / 0.8);
+  --lp-accent: oklch(0.68 0.10 45);
+  color-scheme: light;
+}
+html.dark .lp {
+  --lp-bg: ${dark.background};
+  --lp-fg: ${dark.primary};
+  --lp-muted: ${dark.secondary};
+  --lp-glow: oklch(0.85 0.08 45 / 0.26);
+  --lp-accent: oklch(0.84 0.085 45);
+  color-scheme: dark;
+}
+`
+
+const profile = {
+  ...PROFILE,
+  title: themeConfig.site.title,
+  subtitle: themeConfig.site.subtitle,
+  author: themeConfig.site.author,
+}
+
+const allPosts = await getCollection('posts', ({ data }) => {
+  const visible = import.meta.env.DEV || !data.draft
+  return visible && (data.lang === defaultLocale || data.lang === '')
+})
+
+// Only the four newest posts are rendered — enough for the stack, far cheaper
+// than getPosts(), which renders every article just to compute reading time.
+const latestPosts = allPosts
+  .sort((a, b) => b.data.published.valueOf() - a.data.published.valueOf())
+  .slice(0, 4)
+
+const pad = (value: number) => String(value).padStart(2, '0')
+function formatDate(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+const articles = latestPosts.map((post) => {
+  // Count words on the raw body instead of rendering the post: rendering runs
+  // the whole image pipeline, which is slow (and some legacy posts fail it).
+  const minutes = Math.max(1, Math.round(getReadingTime(post.body ?? '').minutes))
+
+  return {
+    date: formatDate(post.data.published),
+    tag: post.data.tags[0] ?? '随笔',
+    title: post.data.title,
+    excerpt: getPostDescription(post, 'list'),
+    readingTime: `${minutes} min`,
+    href: getPostPath(post.data.abbrlink || post.id, defaultLocale),
+  }
+})
+
+const socials = themeConfig.footer.links.map(({ name, url }) => ({
+  name,
+  url: name === 'Email' && !url.startsWith('mailto:') ? `mailto:${url}` : url,
+}))
+---
+
+<Layout bare>
+  <style is:inline set:html={landingTheme} />
+  <LandingPage
+    client:load
+    profile={profile}
+    articles={articles}
+    socials={socials}
+    startYear={themeConfig.footer.startYear}
+  />
+</Layout>

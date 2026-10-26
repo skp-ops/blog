@@ -1,6 +1,6 @@
 ---
 import PostList from '@/components/PostList.astro'
-import { defaultLocale, moreLocales } from '@/config'
+import { moreLocales } from '@/config'
 import Layout from '@/layouts/Layout.astro'
 import { getPinnedPosts, getPostsByYear } from '@/utils/content'
 
@@ -12,13 +12,8 @@ export async function getStaticPaths() {
 
   const paths: PathItem[] = []
 
-  // Default locale
-  paths.push({
-    params: { index: undefined },
-    props: { lang: defaultLocale },
-  })
-
-  // More locales
+  // The default locale ("/") is now the scroll-driven landing page
+  // (src/pages/index.astro); this route only serves the extra locales.
   moreLocales.forEach((lang: string) => {
     paths.push({
       params: { index: `${lang}/` },
