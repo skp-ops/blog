@@ -36,7 +36,7 @@ export async function getStaticPaths() {
 const { slug, lang } = Astro.props
 const posts = await getPostsBySeries(slug, lang)
 const supportedLangs = await getSeriesSupportedLangs(slug)
-const seriesTitle = posts[0]?.data.seriesTitle || slug
+const seriesTitle = (await getSeries(lang)).find(series => series.slug === slug)?.title || slug
 ---
 
 <Layout supportedLangs={supportedLangs}>

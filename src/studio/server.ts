@@ -8,7 +8,7 @@ import type {
 import { Buffer } from 'node:buffer'
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
@@ -17,11 +17,14 @@ const execFileAsync = promisify(execFile)
 const POSTS_ROOT = 'src/content/posts'
 const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
-const CONTENT_PATHS = [POSTS_ROOT, NOTES_ROOT, PHOTOS_PATH]
+const TAXONOMY_PATH = 'src/content/taxonomy.json'
+const UPLOAD_ROOT = 'public/gallery/uploads'
+const CONTENT_PATHS = [POSTS_ROOT, NOTES_ROOT, PHOTOS_PATH, TAXONOMY_PATH, UPLOAD_ROOT]
 const MAX_BODY_SIZE = 25 * 1024 * 1024
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 const STUDIO_HEADER = 'x-content-studio'
 const UPLOAD_ASSET_PATTERN = /^public\/gallery\/uploads(?:\/[^/]+)*\/[^/]+\.(?:avif|gif|jpe?g|png|webp)$/i
+const UPLOAD_URL_PATTERN = /(?:^|[\s("'=])(\/gallery\/uploads\/[^\s)"'<>]+)/gm
 
 interface GitResult {
   code: number
@@ -122,10 +125,11 @@ async function walkMarkdown(root: string, relativeRoot: string): Promise<StudioF
 }
 
 async function collectContentFiles(root: string): Promise<StudioFile[]> {
-  const [posts, notes, photos] = await Promise.all([
+  const [posts, notes, photos, taxonomy] = await Promise.all([
     walkMarkdown(root, POSTS_ROOT),
     walkMarkdown(root, NOTES_ROOT),
     readFile(join(root, PHOTOS_PATH), 'utf8'),
+    readFile(join(root, TAXONOMY_PATH), 'utf8'),
   ])
 
   return [
@@ -134,6 +138,10 @@ async function collectContentFiles(root: string): Promise<StudioFile[]> {
     {
       path: PHOTOS_PATH,
       content: photos,
+    },
+    {
+      path: TAXONOMY_PATH,
+      content: taxonomy,
     },
   ]
 }
@@ -187,13 +195,24 @@ function validateContentPath(value: unknown, action: StudioFileChange['action'])
 
   const isMarkdown = /^src\/content\/(?:posts|notes)\/(?:[^/]+\/)*[^/]+\.(?:md|mdx)$/i.test(path)
   const isUploadAsset = UPLOAD_ASSET_PATTERN.test(path)
-  if (!isMarkdown && path !== PHOTOS_PATH && !isUploadAsset)
-    throw new StudioHttpError(`只允许修改文章、说说和画廊内容：${path}`)
+  const isTaxonomy = path === TAXONOMY_PATH
+  if (!isMarkdown && path !== PHOTOS_PATH && !isTaxonomy && !isUploadAsset)
+    throw new StudioHttpError(`只允许修改文章、说说、分类和画廊内容：${path}`)
   if (path === PHOTOS_PATH && action === 'delete')
     throw new StudioHttpError('不能删除 photos.json，请单独删除画廊条目。')
+  if (isTaxonomy && action === 'delete')
+    throw new StudioHttpError('不能删除 taxonomy.json。')
   if (isUploadAsset && action !== 'create')
     throw new StudioHttpError('上传图片只支持新增文件。')
 
+  return path
+}
+
+function uploadPathFromPublicUrl(value: string) {
+  const pathname = value.split(/[?#]/, 1)[0]
+  const path = posix.normalize(`public${pathname}`)
+  if (!path.startsWith(`${UPLOAD_ROOT}/`) || !UPLOAD_ASSET_PATTERN.test(path))
+    throw new StudioHttpError(`图片路径无效：${value}`)
   return path
 }
 
@@ -204,6 +223,17 @@ async function readExistingFile(path: string) {
   catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT')
       return null
+    throw error
+  }
+}
+
+async function fileExists(path: string) {
+  try {
+    return (await stat(path)).isFile()
+  }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      return false
     throw error
   }
 }
@@ -295,6 +325,33 @@ async function applyFileChanges(
   return effective
 }
 
+async function findReferencedUploadAssets(
+  root: string,
+  changes: Array<StudioFileChange & { content?: string }>,
+) {
+  const paths = new Set<string>()
+  for (const change of changes) {
+    if (change.action === 'delete' || change.encoding === 'base64')
+      continue
+
+    for (const match of (change.content || '').matchAll(UPLOAD_URL_PATTERN))
+      paths.add(uploadPathFromPublicUrl(match[1]))
+  }
+
+  for (const path of paths) {
+    try {
+      const details = await stat(join(root, path))
+      if (!details.isFile())
+        throw new Error('not a file')
+    }
+    catch {
+      throw new StudioHttpError(`内容引用的图片不存在：/${path.replace(/^public\//, '')}`, 409)
+    }
+  }
+
+  return paths
+}
+
 function parseCommitRequest(value: unknown): StudioCommitRequest {
   if (!value || typeof value !== 'object')
     throw new StudioHttpError('提交请求无效。')
@@ -347,6 +404,38 @@ function parseCommitRequest(value: unknown): StudioCommitRequest {
   }
 }
 
+function parseUploadRequest(value: unknown) {
+  if (!value || typeof value !== 'object')
+    throw new StudioHttpError('图片上传请求无效。')
+
+  const body = value as Record<string, unknown>
+  const path = validateContentPath(body.path, 'create')
+  const content = String(body.content || '')
+  if (!UPLOAD_ASSET_PATTERN.test(path))
+    throw new StudioHttpError('上传路径必须位于 public/gallery/uploads。')
+  if (!content || !/^[a-z0-9+/]+={0,2}$/i.test(content))
+    throw new StudioHttpError('图片内容无效。')
+
+  const buffer = Buffer.from(content, 'base64')
+  if (!buffer.length || buffer.length > MAX_IMAGE_SIZE)
+    throw new StudioHttpError('图片大小无效。', 413)
+
+  return { path, buffer }
+}
+
+async function uploadAsset(root: string, body: unknown) {
+  const { path, buffer } = parseUploadRequest(body)
+  const absolutePath = resolve(root, path)
+  if (await fileExists(absolutePath))
+    throw new StudioHttpError(`图片已存在：${path}`, 409)
+
+  await atomicWriteBuffer(absolutePath, buffer)
+  return {
+    path,
+    url: `/${path.replace(/^public\//, '')}`,
+  }
+}
+
 function commitUrl(remote: string, sha: string) {
   const cleaned = remote.trim().replace(/\.git$/, '')
   const httpsMatch = cleaned.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)$/)
@@ -392,7 +481,11 @@ async function commitContent(root: string, body: unknown): Promise<StudioCommitR
   }
 
   const effectiveChanges = await applyFileChanges(root, request.changes)
-  const paths = effectiveChanges.map(change => change.path)
+  const referencedAssets = await findReferencedUploadAssets(root, effectiveChanges)
+  const paths = [...new Set([
+    ...effectiveChanges.map(change => change.path),
+    ...referencedAssets,
+  ])]
 
   const addResult = await runGit(root, ['add', '--', ...paths])
   if (addResult.code !== 0) {
@@ -479,6 +572,11 @@ export async function handleStudioRequest(request: Request, root = process.cwd()
   try {
     if (request.method === 'GET' && pathname === '/api/studio/content')
       return sendJson(200, await readRepositorySnapshot(root))
+
+    if (request.method === 'POST' && pathname === '/api/studio/upload') {
+      const body = await readJsonBody(request)
+      return sendJson(201, await uploadAsset(root, body))
+    }
 
     if (request.method === 'POST' && pathname === '/api/studio/commit') {
       const body = await readJsonBody(request)

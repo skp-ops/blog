@@ -1,7 +1,11 @@
 import type { CollectionEntry } from 'astro:content'
-import { getCollection, render } from 'astro:content'
+import { getCollection } from 'astro:content'
+import getReadingTime from 'reading-time'
 import { defaultLocale } from '@/config'
+import taxonomyData from '@/content/taxonomy.json'
+import { normalizeTaxonomy } from '@/types/taxonomy'
 import { memoize } from '@/utils/cache'
+import { markdownToPlainText } from '@/utils/search'
 
 export type Post = CollectionEntry<'posts'> & {
   remarkPluginFrontmatter: {
@@ -9,30 +13,19 @@ export type Post = CollectionEntry<'posts'> & {
   }
 }
 
-const metaCache = new Map<string, { minutes: number }>()
-
 /**
  * Add metadata including reading time to a post
  *
  * @param post The post to enhance with metadata
  * @returns Enhanced post with reading time information
  */
-async function addMetaToPost(post: CollectionEntry<'posts'>): Promise<Post> {
-  const cacheKey = `${post.id}-${post.data.lang || 'universal'}`
-
-  if (metaCache.has(cacheKey)) {
-    return {
-      ...post,
-      remarkPluginFrontmatter: metaCache.get(cacheKey)!,
-    }
-  }
-
-  const { remarkPluginFrontmatter } = await render(post)
-  metaCache.set(cacheKey, remarkPluginFrontmatter as { minutes: number })
-
+function addMetaToPost(post: CollectionEntry<'posts'>): Post {
+  const minutes = Math.max(1, Math.round(
+    getReadingTime(markdownToPlainText(post.body || '')).minutes,
+  ))
   return {
     ...post,
-    remarkPluginFrontmatter: metaCache.get(cacheKey)!,
+    remarkPluginFrontmatter: { minutes },
   }
 }
 
@@ -91,7 +84,7 @@ async function _getPosts(lang?: string) {
     },
   )
 
-  const enhancedPosts = await Promise.all(filteredPosts.map(addMetaToPost))
+  const enhancedPosts = filteredPosts.map(addMetaToPost)
 
   return enhancedPosts.sort((a: Post, b: Post) =>
     b.data.published.valueOf() - a.data.published.valueOf(),
@@ -234,12 +227,24 @@ export const getPostsByTag = memoize(_getPostsByTag)
 export interface Series {
   slug: string
   title: string
+  order: number
   posts: Post[]
 }
 
 async function _getSeries(lang?: string): Promise<Series[]> {
   const posts = await getRegularPosts(lang)
-  const seriesMap = new Map<string, Series>()
+  const configuredSeries = normalizeTaxonomy(taxonomyData).series
+  const seriesMap = new Map<string, Series>(
+    configuredSeries.map(series => [
+      series.id,
+      {
+        slug: series.id,
+        title: series.title,
+        order: series.order,
+        posts: [],
+      },
+    ]),
+  )
 
   posts.forEach((post) => {
     const slug = post.data.series
@@ -247,9 +252,11 @@ async function _getSeries(lang?: string): Promise<Series[]> {
       return
 
     if (!seriesMap.has(slug)) {
+      const configured = configuredSeries.find(item => item.id === slug)
       seriesMap.set(slug, {
         slug,
-        title: post.data.seriesTitle || slug,
+        title: configured?.title || post.data.seriesTitle || slug,
+        order: configured?.order ?? Number.MAX_SAFE_INTEGER,
         posts: [],
       })
     }
@@ -267,7 +274,7 @@ async function _getSeries(lang?: string): Promise<Series[]> {
       })
       return series
     })
-    .sort((a, b) => a.title.localeCompare(b.title))
+    .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
 }
 
 export const getSeries = memoize(_getSeries)

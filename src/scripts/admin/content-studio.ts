@@ -1,7 +1,14 @@
 import type { StudioFileChange, StudioSnapshot } from '@/types/studio'
+import type { Taxonomy } from '@/types/taxonomy'
 import MarkdownIt from 'markdown-it'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
-import { commitStudioChanges, getStudioSnapshot, StudioApiError } from './studio-client'
+import { normalizeTaxonomy, serializeTaxonomy } from '@/types/taxonomy'
+import {
+  commitStudioChanges,
+  getStudioSnapshot,
+  StudioApiError,
+  uploadStudioAsset,
+} from './studio-client'
 
 type CollectionKey = 'posts' | 'notes' | 'photos'
 type EditorViewMode = 'edit' | 'split' | 'preview'
@@ -38,6 +45,9 @@ interface Workspace {
   dirty: boolean
   items: Record<CollectionKey, ContentItem[]>
   baseline: Map<string, BaselineItem>
+  taxonomy: Taxonomy
+  taxonomyRaw: string
+  taxonomyBaselineRaw: string
   loadedAt: Date
 }
 
@@ -50,12 +60,6 @@ interface ChangeRow {
 interface ComputedChanges {
   files: StudioFileChange[]
   rows: ChangeRow[]
-}
-
-interface PendingAsset {
-  path: string
-  content: string
-  previewUrl: string
 }
 
 interface LocalDraft {
@@ -73,6 +77,7 @@ interface LocalDraft {
 const POSTS_ROOT = 'src/content/posts'
 const NOTES_ROOT = 'src/content/notes'
 const PHOTOS_PATH = 'src/content/photos/photos.json'
+const TAXONOMY_PATH = 'src/content/taxonomy.json'
 const AUTO_SYNC_INTERVAL = 60_000
 const LIST_PAGE_SIZE = 16
 const EDITOR_VIEW_KEY = 'kun-blog-content-studio-view'
@@ -251,6 +256,7 @@ function mountContentStudio(root: HTMLElement) {
   const changeCount = getById<HTMLElement>('studio-change-count')
   const createButton = getById<HTMLButtonElement>('studio-create')
   const searchInput = getById<HTMLInputElement>('studio-search')
+  const languageFilter = getById<HTMLSelectElement>('studio-language-filter')
   const listElement = getById<HTMLElement>('studio-list')
   const paginationElement = getById<HTMLElement>('studio-list-pagination')
   const listLabel = getById<HTMLElement>('studio-list-label')
@@ -275,6 +281,12 @@ function mountContentStudio(root: HTMLElement) {
   const commitResult = getById<HTMLElement>('studio-commit-result')
   const commitTarget = getById<HTMLElement>('studio-commit-target')
   const commitConfirm = getById<HTMLButtonElement>('studio-commit-confirm')
+  const taxonomyOpenButton = getById<HTMLButtonElement>('studio-taxonomy-open')
+  const taxonomyDialog = getById<HTMLDialogElement>('studio-taxonomy-dialog')
+  const taxonomyPanel = getById<HTMLElement>('studio-taxonomy-panel')
+  const taxonomyTabButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('[data-taxonomy-tab]'),
+  )
 
   const countElements: Record<CollectionKey, HTMLElement> = {
     posts: getById<HTMLElement>('studio-count-posts'),
@@ -285,6 +297,8 @@ function mountContentStudio(root: HTMLElement) {
   let workspace: Workspace | null = null
   let activeCollection: CollectionKey = 'posts'
   let activeFilter: ListFilter = 'all'
+  let activeLanguage = 'all'
+  let activeTaxonomyTab: 'tags' | 'series' = 'tags'
   let editorViewMode = readEditorViewMode()
   let selectedKey: string | null = null
   let editorFormDirty = false
@@ -297,13 +311,23 @@ function mountContentStudio(root: HTMLElement) {
   let localDraftsCache: LocalDraft[] | null = null
   let pendingDraftRecovery: LocalDraft[] = []
   let focusMode = false
-  const pendingAssets = new Map<string, PendingAsset>()
 
   function readEditorViewMode(): EditorViewMode {
     const stored = localStorage.getItem(EDITOR_VIEW_KEY)
     return stored === 'edit' || stored === 'preview' || stored === 'split'
       ? stored
       : 'split'
+  }
+
+  function initializeLanguageFilter() {
+    languageFilter.innerHTML = [
+      '<option value="all">全部语言</option>',
+      '<option value="universal">全语言通用</option>',
+      ...locales.map(locale =>
+        `<option value="${escapeHtml(locale.value)}">${escapeHtml(locale.label)}</option>`,
+      ),
+    ].join('')
+    languageFilter.value = activeLanguage
   }
 
   function setConnection(mode: 'loading' | 'live' | 'error', text: string) {
@@ -466,24 +490,24 @@ function mountContentStudio(root: HTMLElement) {
       data.published = inputValue('studio-editor-date')
       data.updated = inputValue('studio-editor-updated') || undefined
       data.description = inputValue('studio-editor-description')
-      data.tags = parseTags(inputValue('studio-editor-tags'))
+      data.tags = selectedEditorTags()
       data.draft = inputChecked('studio-editor-draft')
       data.pin = Number.parseInt(inputValue('studio-editor-pin') || '0', 10) || 0
       data.toc = inputChecked('studio-editor-toc')
       data.lang = inputValue('studio-editor-lang')
       data.abbrlink = inputValue('studio-editor-abbrlink')
       data.series = inputValue('studio-editor-series')
-      data.seriesTitle = inputValue('studio-editor-series-title')
-      data.seriesOrder = Number.parseInt(inputValue('studio-editor-series-order') || '0', 10) || 0
+      delete data.seriesTitle
+      delete data.seriesOrder
       body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement | null)?.value ?? ''
     }
     else if (item.collection === 'notes') {
       data.date = inputValue('studio-editor-date')
-      data.description = inputValue('studio-editor-description')
       data.image = inputValue('studio-editor-image')
-      data.tags = parseTags(inputValue('studio-editor-tags'))
       data.draft = inputChecked('studio-editor-draft')
       data.lang = inputValue('studio-editor-lang')
+      delete data.description
+      delete data.tags
       body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement | null)?.value ?? ''
     }
     else {
@@ -822,30 +846,16 @@ function mountContentStudio(root: HTMLElement) {
       }
     }
 
-    const referencedMedia = new Set(
-      allCurrentItems()
-        .filter(item => !item.isPending)
-        .flatMap((item) => {
-          const inlineImages = item.body.match(/\/gallery\/uploads\/[^\s)"'<>]+/g) ?? []
-          return [item.data.image, item.data.thumbnail, ...inlineImages]
-        })
-        .filter((value): value is string => typeof value === 'string' && value.startsWith('/')),
-    )
-    for (const asset of pendingAssets.values()) {
-      const publicUrl = `/${asset.path.replace(/^public\//, '')}`
-      if (!referencedMedia.has(publicUrl))
-        continue
-
+    if (workspace.taxonomyRaw !== workspace.taxonomyBaselineRaw) {
       files.push({
-        path: asset.path,
-        action: 'create',
-        content: asset.content,
-        encoding: 'base64',
+        path: TAXONOMY_PATH,
+        action: 'update',
+        content: workspace.taxonomyRaw,
       })
       rows.push({
-        action: 'create',
-        path: asset.path,
-        label: publicUrl.split('/').pop() || '图片',
+        action: 'update',
+        path: TAXONOMY_PATH,
+        label: '标签与系列',
       })
     }
 
@@ -859,6 +869,7 @@ function mountContentStudio(root: HTMLElement) {
     changeCount.textContent = String(changes.files.length)
     discardButton.hidden = !workspace || (!hasChanges && !editorFormDirty)
     createButton.disabled = loading || !workspace
+    taxonomyOpenButton.disabled = loading || !workspace
   }
 
   function updateCounts() {
@@ -885,6 +896,14 @@ function mountContentStudio(root: HTMLElement) {
     const query = searchInput.value.trim().toLowerCase()
     const localDrafts = readLocalDrafts()
     const items = workspace.items[activeCollection]
+      .filter((item) => {
+        if (activeLanguage === 'all')
+          return true
+        const language = String(item.data.lang || '')
+        return activeLanguage === 'universal'
+          ? language === ''
+          : language === activeLanguage
+      })
       .filter((item) => {
         if (!query)
           return true
@@ -1073,6 +1092,78 @@ function mountContentStudio(root: HTMLElement) {
     `
   }
 
+  function availableEditorTags(item: ContentItem) {
+    const registered = [...(workspace?.taxonomy.tags ?? [])]
+      .sort((a, b) => a.localeCompare(b))
+    return [...new Set([...registered, ...itemTags(item)])]
+      .sort((a, b) => a.localeCompare(b))
+  }
+
+  function tagPicker(item: ContentItem) {
+    const tags = availableEditorTags(item)
+    const selected = new Set(itemTags(item))
+    if (!tags.length) {
+      return `
+        <div class="studio-field studio-field-wide">
+          <span>标签 <small>在“标签与系列”中统一管理</small></span>
+          <p class="studio-taxonomy-empty">还没有标签，请先在顶部打开“标签与系列”添加。</p>
+        </div>
+      `
+    }
+
+    const selectedLabels = tags.filter(tag => selected.has(tag))
+    return `
+      <div class="studio-field studio-field-wide">
+        <span>标签 <small>可多选，选项来自统一管理</small></span>
+        <details class="studio-tag-picker" data-tag-picker>
+          <summary>
+            <span class="studio-tag-picker-value">${escapeHtml(
+              selectedLabels.length ? selectedLabels.join(' · ') : '选择标签',
+            )}</span>
+            <span aria-hidden="true">⌄</span>
+          </summary>
+          <div class="studio-tag-options">
+            ${tags.map(tag => `
+              <label>
+                <input type="checkbox" value="${escapeHtml(tag)}" ${selected.has(tag) ? 'checked' : ''}>
+                <span>${escapeHtml(tag)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </details>
+      </div>
+    `
+  }
+
+  function seriesOptions(item: ContentItem) {
+    const selected = String(item.data.series || '')
+    const managed = [...(workspace?.taxonomy.series ?? [])]
+      .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
+    const options = managed.map(series => ({
+      id: series.id,
+      title: `${series.title}（${series.id}）`,
+    }))
+    if (selected && !options.some(option => option.id === selected)) {
+      options.push({
+        id: selected,
+        title: `${item.data.seriesTitle || selected}（未登记）`,
+      })
+    }
+
+    return [
+      '<option value="">不加入系列</option>',
+      ...options.map(option =>
+        `<option value="${escapeHtml(option.id)}">${escapeHtml(option.title)}</option>`,
+      ),
+    ].join('')
+  }
+
+  function selectedEditorTags() {
+    return Array.from(editorElement.querySelectorAll<HTMLInputElement>(
+      '.studio-tag-picker input[type="checkbox"]:checked',
+    )).map(input => input.value)
+  }
+
   function mediaField(
     label: string,
     id: string,
@@ -1132,7 +1223,7 @@ function mountContentStudio(root: HTMLElement) {
           ${field('首次发布时间', '<input id="studio-editor-date" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" required>')}
           ${field('更新时间', '<input id="studio-editor-updated" type="text" inputmode="numeric" placeholder="可留空">')}
           ${field('语言', `<select id="studio-editor-lang">${languageOptions()}</select>`)}
-          ${field('标签', '<input id="studio-editor-tags" type="text" autocomplete="off" placeholder="design, notes">')}
+          ${tagPicker(item)}
           ${field('摘要', '<textarea id="studio-editor-description" rows="3"></textarea>', { wide: true })}
           ${checkboxField('studio-editor-draft', '保存为草稿')}
         </div>
@@ -1144,9 +1235,11 @@ function mountContentStudio(root: HTMLElement) {
           <div class="studio-field-grid">
             ${field('自定义链接', '<input id="studio-editor-abbrlink" type="text" autocomplete="off" placeholder="lowercase-slug">')}
             ${field('置顶权重', '<input id="studio-editor-pin" type="number" min="0" max="99" step="1">')}
-            ${field('系列标识', '<input id="studio-editor-series" type="text" autocomplete="off">')}
-            ${field('系列标题', '<input id="studio-editor-series-title" type="text" autocomplete="off">')}
-            ${field('系列序号', '<input id="studio-editor-series-order" type="number" min="0" step="1">')}
+            ${field(
+              '系列',
+              `<select id="studio-editor-series">${seriesOptions(item)}</select>`,
+              { hint: '标识、标题和排序在“标签与系列”中管理' },
+            )}
             ${checkboxField('studio-editor-toc', '显示文章目录')}
           </div>
         </details>
@@ -1160,9 +1253,7 @@ function mountContentStudio(root: HTMLElement) {
         ${field('日期', '<input id="studio-editor-date" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" required>')}
         ${field('语言', `<select id="studio-editor-lang">${languageOptions()}</select>`)}
         ${mediaField('配图', 'studio-editor-image', '/gallery/photo.jpg', { wide: true })}
-        ${field('标签', '<input id="studio-editor-tags" type="text" autocomplete="off" placeholder="life, photo">')}
         ${checkboxField('studio-editor-draft', '保存为草稿')}
-        ${field('摘要 / 备注', '<textarea id="studio-editor-description" rows="3"></textarea>', { wide: true })}
       </div>
     `
   }
@@ -1255,7 +1346,7 @@ function mountContentStudio(root: HTMLElement) {
     const date = document.createElement('span')
     date.textContent = formatDate(itemDate(item))
     meta.appendChild(date)
-    for (const tag of parseTags(inputValue('studio-editor-tags'))) {
+    for (const tag of item.collection === 'posts' ? selectedEditorTags() : []) {
       const badge = document.createElement('span')
       badge.className = 'studio-preview-tag'
       badge.textContent = tag
@@ -1334,9 +1425,8 @@ function mountContentStudio(root: HTMLElement) {
       return
     }
 
-    const pending = pendingAssets.get(value)
     const image = document.createElement('img')
-    image.src = pending?.previewUrl || value
+    image.src = value
     image.alt = ''
     image.loading = 'lazy'
     image.addEventListener('error', () => {
@@ -1350,17 +1440,18 @@ function mountContentStudio(root: HTMLElement) {
     copy.appendChild(name)
 
     const status = document.createElement('span')
-    status.textContent = pending
-      ? `待提交：${pending.path}`
+    const isUploaded = value.startsWith('/gallery/uploads/')
+    status.textContent = isUploaded
+      ? `已存入仓库：public${value}`
       : value.startsWith('/')
         ? `项目路径：public${value}`
         : '外部图片地址'
-    if (pending)
-      status.className = 'studio-pending-asset'
+    if (isUploaded)
+      status.className = 'studio-uploaded-asset'
     copy.appendChild(status)
 
     container.append(image, copy)
-    container.title = pending?.path || value
+    container.title = value
     container.hidden = false
   }
 
@@ -1373,7 +1464,7 @@ function mountContentStudio(root: HTMLElement) {
     })
   }
 
-  async function createPendingImage(file: File) {
+  async function uploadEditorImage(file: File) {
     const extension = IMAGE_EXTENSIONS[file.type]
       || file.name.toLowerCase().match(/\.(avif|gif|jpe?g|png|webp)$/)?.[1]?.replace('jpeg', 'jpg')
     if (!extension || !['avif', 'gif', 'jpg', 'png', 'webp'].includes(extension))
@@ -1394,19 +1485,17 @@ function mountContentStudio(root: HTMLElement) {
       .replace(/^-+|-+$/g, '')
       .slice(0, 56) || 'image'
     const assetPath = `public/gallery/uploads/${month}/${timestampSlug()}-${randomId().slice(0, 8)}-${baseName}.${extension}`
-    const publicUrl = `/${assetPath.replace(/^public\//, '')}`
-    pendingAssets.set(publicUrl, {
+    const result = await uploadStudioAsset({
       path: assetPath,
       content: base64,
-      previewUrl: dataUrl,
     })
 
-    return { path: assetPath, publicUrl, previewUrl: dataUrl }
+    return { path: result.path, publicUrl: result.url }
   }
 
   async function importImageFile(file: File, targetId: string) {
     const previousImage = (document.getElementById('studio-editor-image') as HTMLInputElement | null)?.value
-    const { publicUrl } = await createPendingImage(file)
+    const { publicUrl } = await uploadEditorImage(file)
 
     setInputValue(targetId, publicUrl)
     const target = document.getElementById(targetId) as HTMLInputElement | null
@@ -1421,13 +1510,13 @@ function mountContentStudio(root: HTMLElement) {
     }
 
     updateMediaPreview(targetId)
-    showToast('图片已加入待提交文件，提交 Git 时会一起上传。')
+    showToast('图片已保存到仓库，提交内容时会自动加入 Git。')
   }
 
   async function importInlineImage(file: File, textarea: HTMLTextAreaElement) {
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
-    const { publicUrl } = await createPendingImage(file)
+    const { publicUrl } = await uploadEditorImage(file)
     const alt = file.name
       .replace(/\.[^.]+$/, '')
       .replaceAll('[', '')
@@ -1438,7 +1527,7 @@ function mountContentStudio(root: HTMLElement) {
     textarea.setRangeText(markdown, start, end, 'end')
     textarea.focus()
     textarea.dispatchEvent(new Event('input', { bubbles: true }))
-    showToast('正文图片已加入待提交文件，提交 Git 时会一起上传。')
+    showToast('正文图片已保存到仓库，提交内容时会自动加入 Git。')
   }
 
   function initializeMediaFields() {
@@ -1490,6 +1579,23 @@ function mountContentStudio(root: HTMLElement) {
       input.addEventListener('input', () => updateMediaPreview(id))
       updateMediaPreview(id)
     }
+  }
+
+  function initializeTagPicker() {
+    const picker = editorElement.querySelector<HTMLDetailsElement>('[data-tag-picker]')
+    const value = picker?.querySelector<HTMLElement>('.studio-tag-picker-value')
+    if (!picker || !value)
+      return
+
+    const updateLabel = () => {
+      const selected = Array.from(
+        picker.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked'),
+      ).map(input => input.value)
+      value.textContent = selected.length ? selected.join(' · ') : '选择标签'
+    }
+
+    picker.addEventListener('change', updateLabel)
+    updateLabel()
   }
 
   function applyMarkdownAction(action: string) {
@@ -1654,6 +1760,342 @@ function mountContentStudio(root: HTMLElement) {
     preview.addEventListener('scroll', () => syncScroll(preview, textarea), { passive: true })
   }
 
+  function refreshMarkdownItem(item: ContentItem) {
+    item.raw = serializeMarkdown(item)
+  }
+
+  function persistTaxonomyChanges() {
+    if (!workspace)
+      return
+    workspace.taxonomyRaw = serializeTaxonomy(workspace.taxonomy)
+    renderList()
+    renderEditor()
+    updateActionState()
+  }
+
+  function replaceManagedTag(oldTag: string | null, nextTag: string | null) {
+    if (!workspace)
+      return
+
+    for (const collection of ['posts', 'notes'] as const) {
+      for (const item of workspace.items[collection]) {
+        const tags = itemTags(item)
+        if (!tags.includes(oldTag || nextTag || ''))
+          continue
+        item.data.tags = [...new Set(tags.flatMap((tag) => {
+          if (tag !== oldTag)
+            return [tag]
+          return nextTag ? [nextTag] : []
+        }))]
+        refreshMarkdownItem(item)
+      }
+    }
+  }
+
+  function addTaxonomyTag(value: string) {
+    if (!workspace)
+      return
+    const tag = value.trim()
+    if (!tag)
+      throw new Error('标签名称不能为空。')
+    if (workspace.taxonomy.tags.some(item => item.toLocaleLowerCase() === tag.toLocaleLowerCase()))
+      throw new Error('这个标签已经存在。')
+
+    workspace.taxonomy.tags.push(tag)
+    persistTaxonomyChanges()
+    showToast('标签已添加，提交 Git 后生效。')
+  }
+
+  function renameTaxonomyTag(oldTag: string, value: string) {
+    if (!workspace)
+      return
+    const tag = value.trim()
+    if (!tag)
+      throw new Error('标签名称不能为空。')
+    if (
+      tag !== oldTag
+      && workspace.taxonomy.tags.some(item =>
+        item !== oldTag && item.toLocaleLowerCase() === tag.toLocaleLowerCase(),
+      )
+    ) {
+      throw new Error('这个标签已经存在。')
+    }
+
+    workspace.taxonomy.tags = workspace.taxonomy.tags.map(item => item === oldTag ? tag : item)
+    if (tag !== oldTag)
+      replaceManagedTag(oldTag, tag)
+    persistTaxonomyChanges()
+    showToast('标签已更新，关联文章也已同步。')
+  }
+
+  function deleteTaxonomyTag(tag: string) {
+    if (!workspace)
+      return
+    const affected = [...workspace.items.posts, ...workspace.items.notes]
+      .filter(item => itemTags(item).includes(tag))
+      .length
+    // eslint-disable-next-line no-alert -- deleting a managed tag updates content
+    if (!window.confirm(
+      `确定删除标签「${tag}」吗？\n\n${affected} 篇内容中的这个标签也会被移除。`,
+    )) {
+      return
+    }
+    workspace.taxonomy.tags = workspace.taxonomy.tags.filter(item => item !== tag)
+    replaceManagedTag(tag, null)
+    persistTaxonomyChanges()
+    showToast(`已删除标签「${tag}」，关联文章中的标签也已移除。`)
+  }
+
+  function readSeriesFields(scope: ParentNode) {
+    const id = scope.querySelector<HTMLInputElement>('[data-series-id-input]')?.value.trim().toLowerCase() || ''
+    const title = scope.querySelector<HTMLInputElement>('[data-series-title-input]')?.value.trim() || ''
+    const order = Number.parseInt(
+      scope.querySelector<HTMLInputElement>('[data-series-order-input]')?.value || '0',
+      10,
+    )
+
+    if (!id)
+      throw new Error('系列标识不能为空。')
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(id))
+      throw new Error('系列标识只能使用小写字母、数字和连字符。')
+    if (!title)
+      throw new Error('系列标题不能为空。')
+    if (!Number.isFinite(order) || order < 0)
+      throw new Error('系列序号必须是大于等于 0 的整数。')
+
+    return { id, title, order }
+  }
+
+  function addTaxonomySeries(scope: ParentNode) {
+    if (!workspace)
+      return
+    const series = readSeriesFields(scope)
+    if (workspace.taxonomy.series.some(item => item.id === series.id))
+      throw new Error('这个系列标识已经存在。')
+
+    workspace.taxonomy.series.push(series)
+    persistTaxonomyChanges()
+    showToast('系列已添加，提交 Git 后生效。')
+  }
+
+  function updateTaxonomySeries(oldId: string, scope: ParentNode) {
+    if (!workspace)
+      return
+    const next = readSeriesFields(scope)
+    if (workspace.taxonomy.series.some(item => item.id !== oldId && item.id === next.id))
+      throw new Error('这个系列标识已经存在。')
+
+    const index = workspace.taxonomy.series.findIndex(item => item.id === oldId)
+    if (index === -1)
+      throw new Error('系列不存在，请刷新后重试。')
+    workspace.taxonomy.series[index] = next
+
+    for (const item of workspace.items.posts) {
+      if (String(item.data.series || '') !== oldId)
+        continue
+      item.data.series = next.id
+      delete item.data.seriesTitle
+      delete item.data.seriesOrder
+      refreshMarkdownItem(item)
+    }
+
+    persistTaxonomyChanges()
+    showToast('系列已更新，关联文章也已同步。')
+  }
+
+  function deleteTaxonomySeries(id: string) {
+    if (!workspace)
+      return
+    const series = workspace.taxonomy.series.find(item => item.id === id)
+    if (!series)
+      return
+    const affected = workspace.items.posts
+      .filter(item => String(item.data.series || '') === id)
+      .length
+    // eslint-disable-next-line no-alert -- deleting a managed series updates content
+    if (!window.confirm(
+      `确定删除系列「${series.title}」吗？\n\n${affected} 篇文章会移出这个系列。`,
+    )) {
+      return
+    }
+
+    workspace.taxonomy.series = workspace.taxonomy.series.filter(item => item.id !== id)
+    for (const item of workspace.items.posts) {
+      if (String(item.data.series || '') !== id)
+        continue
+      delete item.data.series
+      delete item.data.seriesTitle
+      delete item.data.seriesOrder
+      refreshMarkdownItem(item)
+    }
+
+    persistTaxonomyChanges()
+    showToast(`已删除系列「${series.title}」，关联文章已移出该系列。`)
+  }
+
+  function taxonomyErrorMessage(error: unknown) {
+    showToast(error instanceof Error ? error.message : String(error), true)
+  }
+
+  function renderTaxonomyManager() {
+    taxonomyTabButtons.forEach((button) => {
+      const active = button.dataset.taxonomyTab === activeTaxonomyTab
+      button.classList.toggle('is-active', active)
+      button.setAttribute('aria-selected', String(active))
+    })
+
+    if (!workspace) {
+      taxonomyPanel.innerHTML = '<p class="studio-taxonomy-empty">内容尚未同步完成。</p>'
+      return
+    }
+
+    if (activeTaxonomyTab === 'tags') {
+      const tags = [...workspace.taxonomy.tags]
+        .sort((a, b) => a.localeCompare(b))
+      taxonomyPanel.innerHTML = `
+        <div class="studio-taxonomy-intro">
+          <div>
+            <h3>标签</h3>
+            <p>文章编辑器只能从这里选择标签。重命名或删除会同步更新所有关联文章。</p>
+          </div>
+          <span>${tags.length} 个</span>
+        </div>
+        <div class="studio-taxonomy-create">
+          <input id="studio-taxonomy-tag-new" type="text" placeholder="新标签，例如「设计」">
+          <button id="studio-taxonomy-tag-add" class="studio-button studio-button-primary" type="button">
+            添加标签
+          </button>
+        </div>
+        <div class="studio-taxonomy-list">
+          ${tags.length
+            ? tags.map(tag => `
+              <div class="studio-taxonomy-row" data-taxonomy-tag-row data-old-tag="${escapeHtml(tag)}">
+                <input class="studio-taxonomy-input" data-tag-input type="text" value="${escapeHtml(tag)}">
+                <button class="studio-button studio-button-quiet" data-tag-save type="button">保存</button>
+                <button class="studio-text-button" data-tag-delete type="button">删除</button>
+              </div>
+            `).join('')
+            : '<p class="studio-taxonomy-empty">还没有标签，先添加一个。</p>'}
+        </div>
+      `
+
+      const newTag = taxonomyPanel.querySelector<HTMLInputElement>('#studio-taxonomy-tag-new')
+      const addTag = () => {
+        try {
+          addTaxonomyTag(newTag?.value || '')
+          renderTaxonomyManager()
+        }
+        catch (error) {
+          taxonomyErrorMessage(error)
+        }
+      }
+      taxonomyPanel.querySelector('#studio-taxonomy-tag-add')?.addEventListener('click', addTag)
+      newTag?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          addTag()
+        }
+      })
+
+      for (const row of Array.from(taxonomyPanel.querySelectorAll<HTMLElement>('[data-taxonomy-tag-row]'))) {
+        const oldTag = row.dataset.oldTag || ''
+        const input = row.querySelector<HTMLInputElement>('[data-tag-input]')
+        row.querySelector('[data-tag-save]')?.addEventListener('click', () => {
+          try {
+            renameTaxonomyTag(oldTag, input?.value || '')
+            renderTaxonomyManager()
+          }
+          catch (error) {
+            taxonomyErrorMessage(error)
+          }
+        })
+        row.querySelector('[data-tag-delete]')?.addEventListener('click', () => {
+          deleteTaxonomyTag(oldTag)
+          renderTaxonomyManager()
+        })
+      }
+      return
+    }
+
+    const series = [...workspace.taxonomy.series]
+      .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
+    taxonomyPanel.innerHTML = `
+      <div class="studio-taxonomy-intro">
+        <div>
+          <h3>系列</h3>
+          <p>标识、标题和序号都在这里维护。文章编辑器只保存所选择的系列标识。</p>
+        </div>
+        <span>${series.length} 个</span>
+      </div>
+      <div class="studio-taxonomy-create studio-taxonomy-create-series" data-new-series>
+        <input data-series-id-input type="text" placeholder="标识，例如 astro-notes">
+        <input data-series-title-input type="text" placeholder="标题">
+        <input data-series-order-input type="number" min="0" step="1" value="0" placeholder="序号">
+        <button id="studio-taxonomy-series-add" class="studio-button studio-button-primary" type="button">
+          添加系列
+        </button>
+      </div>
+      <div class="studio-taxonomy-list">
+        ${series.length
+          ? series.map(item => `
+            <div class="studio-taxonomy-row studio-taxonomy-row-series" data-taxonomy-series-row data-old-series-id="${escapeHtml(item.id)}">
+              <input class="studio-taxonomy-input" data-series-id-input type="text" value="${escapeHtml(item.id)}" aria-label="系列标识">
+              <input class="studio-taxonomy-input" data-series-title-input type="text" value="${escapeHtml(item.title)}" aria-label="系列标题">
+              <input class="studio-taxonomy-input studio-taxonomy-order" data-series-order-input type="number" min="0" step="1" value="${item.order}" aria-label="系列序号">
+              <button class="studio-button studio-button-quiet" data-series-save type="button">保存</button>
+              <button class="studio-text-button" data-series-delete type="button">删除</button>
+            </div>
+          `).join('')
+          : '<p class="studio-taxonomy-empty">还没有系列，先添加一个。</p>'}
+      </div>
+    `
+
+    const newSeries = taxonomyPanel.querySelector<HTMLElement>('[data-new-series]')
+    taxonomyPanel.querySelector('#studio-taxonomy-series-add')?.addEventListener('click', () => {
+      if (!newSeries)
+        return
+      try {
+        addTaxonomySeries(newSeries)
+        renderTaxonomyManager()
+      }
+      catch (error) {
+        taxonomyErrorMessage(error)
+      }
+    })
+
+    for (const row of Array.from(taxonomyPanel.querySelectorAll<HTMLElement>('[data-taxonomy-series-row]'))) {
+      const oldId = row.dataset.oldSeriesId || ''
+      row.querySelector('[data-series-save]')?.addEventListener('click', () => {
+        try {
+          updateTaxonomySeries(oldId, row)
+          renderTaxonomyManager()
+        }
+        catch (error) {
+          taxonomyErrorMessage(error)
+        }
+      })
+      row.querySelector('[data-series-delete]')?.addEventListener('click', () => {
+        deleteTaxonomySeries(oldId)
+        renderTaxonomyManager()
+      })
+    }
+  }
+
+  function openTaxonomyManager() {
+    if (!workspace) {
+      showToast('内容尚未同步完成。', true)
+      return
+    }
+    if (editorFormDirty) {
+      showToast('请先保存当前编辑内容，再管理标签和系列。', true)
+      return
+    }
+
+    renderTaxonomyManager()
+    if (!taxonomyDialog.open)
+      taxonomyDialog.showModal()
+  }
+
   function renderEditor() {
     window.clearTimeout(previewTimer)
     previewTimer = 0
@@ -1795,7 +2237,6 @@ function mountContentStudio(root: HTMLElement) {
     setInputValue('studio-editor-title', item.data.title)
     setInputValue('studio-editor-date', itemDate(item))
     setInputValue('studio-editor-lang', item.data.lang || '')
-    setInputValue('studio-editor-tags', itemTags(item).join(', '))
     setInputValue('studio-editor-description', item.data.description)
 
     if (item.isPending) {
@@ -1808,8 +2249,6 @@ function mountContentStudio(root: HTMLElement) {
       setInputValue('studio-editor-abbrlink', item.data.abbrlink)
       setInputValue('studio-editor-pin', item.data.pin ?? 0)
       setInputValue('studio-editor-series', item.data.series)
-      setInputValue('studio-editor-series-title', item.data.seriesTitle)
-      setInputValue('studio-editor-series-order', item.data.seriesOrder ?? 0)
       setCheckbox('studio-editor-draft', item.data.draft)
       setCheckbox('studio-editor-toc', item.data.toc ?? true)
     }
@@ -1836,6 +2275,7 @@ function mountContentStudio(root: HTMLElement) {
     setEditorView(editorViewMode)
     updateMarkdownPreview(item)
     initializeMediaFields()
+    initializeTagPicker()
     updateDraftStatus(item)
     updateFocusButtons()
 
@@ -1993,24 +2433,24 @@ function mountContentStudio(root: HTMLElement) {
         item.data.published = date
         item.data.updated = inputValue('studio-editor-updated') || undefined
         item.data.description = inputValue('studio-editor-description')
-        item.data.tags = parseTags(inputValue('studio-editor-tags'))
+        item.data.tags = selectedEditorTags()
         item.data.draft = inputChecked('studio-editor-draft')
         item.data.pin = Number.parseInt(inputValue('studio-editor-pin') || '0', 10) || 0
         item.data.toc = inputChecked('studio-editor-toc')
         item.data.lang = inputValue('studio-editor-lang')
         item.data.abbrlink = inputValue('studio-editor-abbrlink')
         item.data.series = inputValue('studio-editor-series')
-        item.data.seriesTitle = inputValue('studio-editor-series-title')
-        item.data.seriesOrder = Number.parseInt(inputValue('studio-editor-series-order') || '0', 10) || 0
+        delete item.data.seriesTitle
+        delete item.data.seriesOrder
         item.body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement).value
       }
       else if (item.collection === 'notes') {
         item.data.date = date
-        item.data.description = inputValue('studio-editor-description')
         item.data.image = inputValue('studio-editor-image')
-        item.data.tags = parseTags(inputValue('studio-editor-tags'))
         item.data.draft = inputChecked('studio-editor-draft')
         item.data.lang = inputValue('studio-editor-lang')
+        delete item.data.description
+        delete item.data.tags
         item.body = (document.getElementById('studio-editor-body') as HTMLTextAreaElement).value
       }
       else {
@@ -2146,8 +2586,6 @@ function mountContentStudio(root: HTMLElement) {
           lang: '',
           abbrlink: '',
           series: '',
-          seriesTitle: '',
-          seriesOrder: 0,
         },
         body: '',
         raw: '',
@@ -2167,9 +2605,7 @@ function mountContentStudio(root: HTMLElement) {
         data: {
           title: '',
           date: today,
-          description: '',
           image: '',
-          tags: [],
           draft: true,
           lang: '',
         },
@@ -2341,6 +2777,18 @@ function mountContentStudio(root: HTMLElement) {
         })
       }
 
+      const taxonomyFile = fileMap.get(TAXONOMY_PATH)
+      if (!taxonomyFile)
+        throw new Error('标签与系列配置读取失败。')
+
+      let taxonomy: Taxonomy
+      try {
+        taxonomy = normalizeTaxonomy(JSON.parse(taxonomyFile.content))
+      }
+      catch (error) {
+        throw new Error(`taxonomy.json 解析失败：${error instanceof Error ? error.message : String(error)}`)
+      }
+
       sortItems(items.posts)
       sortItems(items.notes)
       sortItems(items.photos)
@@ -2366,9 +2814,11 @@ function mountContentStudio(root: HTMLElement) {
         dirty: snapshot.dirty,
         items,
         baseline,
+        taxonomy,
+        taxonomyRaw: taxonomyFile.content,
+        taxonomyBaselineRaw: taxonomyFile.content,
         loadedAt: new Date(),
       }
-      pendingAssets.clear()
       listPage = 0
       const previousItem = previousSelection ? findItem(previousSelection) : null
       selectedKey = previousItem?.key ?? null
@@ -2596,7 +3046,13 @@ function mountContentStudio(root: HTMLElement) {
     listPage = 0
     renderList()
   })
+  languageFilter.addEventListener('change', () => {
+    activeLanguage = languageFilter.value
+    listPage = 0
+    renderList()
+  })
   createButton.addEventListener('click', createItem)
+  taxonomyOpenButton.addEventListener('click', openTaxonomyManager)
   syncButton.addEventListener('click', manualSync)
   discardButton.addEventListener('click', discardChanges)
   commitButton.addEventListener('click', openCommitDialog)
@@ -2604,13 +3060,23 @@ function mountContentStudio(root: HTMLElement) {
   draftRecoverButton.addEventListener('click', recoverOutdatedDrafts)
   draftDiscardButton.addEventListener('click', discardOutdatedDrafts)
 
+  for (const button of taxonomyTabButtons) {
+    button.addEventListener('click', () => {
+      const tab = button.dataset.taxonomyTab
+      if (tab !== 'tags' && tab !== 'series')
+        return
+      activeTaxonomyTab = tab
+      renderTaxonomyManager()
+    })
+  }
+
   for (const closeButton of Array.from(document.querySelectorAll<HTMLElement>('[data-close-dialog]'))) {
     closeButton.addEventListener('click', () => {
       closeButton.closest('dialog')?.close()
     })
   }
 
-  for (const dialog of [commitDialog]) {
+  for (const dialog of [commitDialog, taxonomyDialog]) {
     dialog.addEventListener('click', (event) => {
       if (event.target === dialog)
         dialog.close()
@@ -2624,7 +3090,7 @@ function mountContentStudio(root: HTMLElement) {
       return
     }
 
-    if (!(event.metaKey || event.ctrlKey))
+    if (taxonomyDialog.open || !(event.metaKey || event.ctrlKey))
       return
 
     const key = event.key.toLowerCase()
@@ -2683,6 +3149,7 @@ function mountContentStudio(root: HTMLElement) {
       || computeChanges().files.length
       || editorFormDirty
       || commitDialog.open
+      || taxonomyDialog.open
     ) {
       return
     }
@@ -2690,6 +3157,7 @@ function mountContentStudio(root: HTMLElement) {
   }, AUTO_SYNC_INTERVAL)
 
   setFocusMode(focusMode, false)
+  initializeLanguageFilter()
   renderEverything()
   setConnection('loading', '准备读取本地内容')
   void loadContent()

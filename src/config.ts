@@ -6,7 +6,7 @@ export const themeConfig: ThemeConfig = {
     // site title
     title: 'Kun\'s Blog',
     // site subtitle
-    subtitle: 'code | coffee | capture',
+    subtitle: 'code | coffee | photography',
     // site description
     description: 'A simple personal blog.',
     // use i18n title/subtitle/description from src/i18n/ui.ts instead of static ones above

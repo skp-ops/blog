@@ -33,3 +33,13 @@ export interface StudioCommitResult {
   pushError?: string
   url?: string
 }
+
+export interface StudioUploadRequest {
+  path: string
+  content: string
+}
+
+export interface StudioUploadResult {
+  path: string
+  url: string
+}
