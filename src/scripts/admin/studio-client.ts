@@ -2,6 +2,8 @@ import type {
   StudioCommitRequest,
   StudioCommitResult,
   StudioSnapshot,
+  StudioUploadRequest,
+  StudioUploadResult,
 } from '@/types/studio'
 
 export class StudioApiError extends Error {
@@ -48,6 +50,13 @@ export function getStudioSnapshot() {
 
 export function commitStudioChanges(request: StudioCommitRequest) {
   return studioRequest<StudioCommitResult>('commit', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}
+
+export function uploadStudioAsset(request: StudioUploadRequest) {
+  return studioRequest<StudioUploadResult>('upload', {
     method: 'POST',
     body: JSON.stringify(request),
   })

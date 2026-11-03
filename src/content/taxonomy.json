@@ -1,0 +1,30 @@
+{
+  "tags": [
+    "Guide",
+    "指南",
+    "ガイド",
+    "Blog Theme",
+    "ブログテーマ",
+    "博客主题",
+    "cpp",
+    "算法",
+    "アルゴリズム"
+  ],
+  "series": [
+    {
+      "id": "coffeejourney",
+      "title": "Coffee Journey",
+      "order": 1
+    },
+    {
+      "id": "cpp-learning",
+      "title": "C++ Learning",
+      "order": 2
+    },
+    {
+      "id": "filming",
+      "title": "Filming",
+      "order": 3
+    }
+  ]
+}

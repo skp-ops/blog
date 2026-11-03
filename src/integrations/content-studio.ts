@@ -17,6 +17,10 @@ export default function contentStudioIntegration(): AstroIntegration {
           pattern: '/api/studio/commit',
           entrypoint: './src/studio/api.ts',
         })
+        injectRoute({
+          pattern: '/api/studio/upload',
+          entrypoint: './src/studio/api.ts',
+        })
       },
     },
   }

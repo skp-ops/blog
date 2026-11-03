@@ -1,7 +1,7 @@
 export const ui = {
   en: {
     title: 'Kun\'s Blog',
-    subtitle: 'code | coffee | capture',
+    subtitle: 'code | coffee | photography',
     description: 'A simple personal blog',
     posts: 'Posts',
     tags: 'Tags',
@@ -17,7 +17,7 @@ export const ui = {
   },
   ja: {
     title: 'Kun\'s ブログ',
-    subtitle: 'コード | コーヒー | キャプチャ',
+    subtitle: 'コード | コーヒー | 写真',
     description: 'シンプルな個人ブログです',
     posts: '記事',
     tags: 'タグ',
@@ -33,7 +33,7 @@ export const ui = {
   },
   zh: {
     title: 'Kun\'s Blog',
-    subtitle: 'code | coffee | capture',
+    subtitle: 'code | coffee | photography',
     description: '一个简单的个人博客',
     posts: '文章',
     tags: '标签',

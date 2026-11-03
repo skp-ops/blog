@@ -42,10 +42,10 @@ export interface Profile {
 
 export const PROFILE: Profile = {
   title: 'Kun\'s Blog',
-  subtitle: 'code | coffee | capture',
+  subtitle: 'code | coffee | photography',
   author: 'kunps',
-  eyebrow: 'CODE · COFFEE · CAPTURE',
-  heroLines: ['代码、咖啡，', '与快门。'],
+  eyebrow: 'CODE · COFFEE · PHOTOGRAPHY',
+  heroLines: ['代码、咖啡', '与摄影。'],
   heroSub: '记录日常的思考，也收藏镜头里的瞬间。',
   cardNote: '把抽象的东西，落到能跑起来的代码上。',
   now: '写一篇文章',
